@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 from app.services import approval_service
 from app.workflows.publish_check_workflow import publish_check_workflow
-from infra.hooks.pre_publish_check import handle as hook_handle
+from app.services.publish_gate_service import handle as hook_handle
 
 
 # ---------------------------------------------------------------------------

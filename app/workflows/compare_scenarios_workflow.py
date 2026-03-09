@@ -1,3 +1,11 @@
+# DEPRECATED — Phase 1 only.
+# This workflow operates on Scenario domain dataclasses and is no longer the
+# recommended comparison path for new development.
+# Use compare_versions_workflow (app/workflows/compare_versions_workflow.py)
+# instead — it operates on plain dicts, supports driver inference, and is the
+# authoritative comparison workflow from Phase 8 onwards.
+# This file is retained for backward compatibility with app/tests/test_compare_scenarios.py.
+
 from app.domain.scenario import Scenario
 from app.services import audit_logger
 from typing import List

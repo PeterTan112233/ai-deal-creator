@@ -49,7 +49,7 @@ They do not directly read or write the database — they go through workflows or
 |---|---|
 | `app/domain/` | Canonical Python dataclasses: Deal, Collateral, Tranche, Structure, Scenario, Approval |
 | `app/schemas/` | Pydantic validation schemas — enforced at workflow entry points |
-| `app/workflows/` | Orchestration functions: create_deal, run_scenario, compare_scenarios, generate_investor_summary |
+| `app/workflows/` | Orchestration functions: create_deal, run_scenario, compare_versions (authoritative), generate_investor_summary |
 | `app/services/` | Shared services: audit_logger |
 | `app/prompts/` | Prompt templates — stored separately from business logic |
 | `app/api/` | API surface (Phase 2+) |
@@ -131,6 +131,17 @@ User input
   → document-drafter          (draft structuring note)
   → audit_logger              (record all events)
 ```
+
+---
+
+## Comparison workflows
+
+Two comparison workflows exist. Only `compare_versions_workflow` should be used for new development:
+
+| Workflow | Status | Input type | Notes |
+|---|---|---|---|
+| `compare_versions_workflow.py` | **Authoritative** | Plain dicts | Supports driver inference; use for all new comparison work |
+| `compare_scenarios_workflow.py` | **Deprecated** | Scenario dataclasses | Phase 1 only; retained for backward compatibility |
 
 ---
 
