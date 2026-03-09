@@ -1,0 +1,41 @@
+{
+  "_note": "Sample ScenarioResult — matches scenario_result.schema.json. Phase 1: mock engine outputs.",
+  "_schema": "app/schemas/scenario_result.schema.json",
+  "_warning": "All metric values below are MOCK placeholders. Not official CLO results.",
+
+  "run_id": "mock-run-a1b2c3d4",
+  "scenario_id": "sc-deal-us-bsl-001-3f9a2b",
+  "deal_id": "deal-us-bsl-001",
+  "source": "model_runner",
+  "status": "complete",
+  "executed_at": "2025-08-01T14:32:00Z",
+
+  "outputs": {
+    "_comment": "All values [mock] — synthetic placeholders only",
+    "equity_irr":     0.142,
+    "aaa_size_pct":   0.610,
+    "wac":            0.038,
+    "oc_cushion_aaa": 0.052,
+    "ic_cushion_aaa": 0.031,
+    "equity_wal":     12.4,
+    "scenario_npv":   1820000.0
+  },
+
+  "engine_warnings": [
+    "MOCK ENGINE: outputs are synthetic placeholders. Replace model_engine_service with real cashflow-engine-mcp in Phase 2."
+  ],
+
+  "engine_errors": [],
+
+  "_mock": "MOCK_ENGINE_OUTPUT",
+
+  "_output_key_reference": {
+    "equity_irr":     "[calculated] Equity internal rate of return as decimal",
+    "aaa_size_pct":   "[calculated] AAA tranche size as fraction of total deal",
+    "wac":            "[calculated] Weighted average cost of liabilities",
+    "oc_cushion_aaa": "[calculated] OC cushion on the AAA test",
+    "ic_cushion_aaa": "[calculated] IC cushion on the AAA test",
+    "equity_wal":     "[calculated] Equity weighted average life in years",
+    "scenario_npv":   "[calculated] Scenario net present value in deal currency"
+  }
+}

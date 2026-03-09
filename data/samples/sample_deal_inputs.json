@@ -1,0 +1,124 @@
+{
+  "_note": "Sample deal inputs matching deal_input.schema.json. For development and testing only.",
+  "_schema": "app/schemas/deal_input.schema.json",
+
+  "deals": [
+
+    {
+      "_label": "US BSL CLO — baseline inputs",
+      "deal_id": "deal-us-bsl-001",
+      "name": "Acme CLO I",
+      "issuer": "Acme Capital LLC",
+      "region": "US",
+      "currency": "USD",
+      "manager": "Acme Capital Management",
+      "close_date": "2025-09-15",
+      "notes": "First deal for development testing",
+
+      "collateral": {
+        "pool_id": "pool-001",
+        "asset_class": "broadly_syndicated_loans",
+        "portfolio_size": 500000000,
+        "was": 0.042,
+        "warf": 2800,
+        "wal": 5.2,
+        "diversity_score": 62,
+        "ccc_bucket": 0.055,
+        "concentrations": {
+          "top_obligor_pct": 0.018,
+          "top_industry_pct": 0.12
+        }
+      },
+
+      "liabilities": [
+        { "tranche_id": "t-aaa",    "name": "AAA",    "seniority": 1, "size_pct": 0.61, "coupon": "SOFR+145", "target_rating": "Aaa" },
+        { "tranche_id": "t-aa",     "name": "AA",     "seniority": 2, "size_pct": 0.10, "coupon": "SOFR+195", "target_rating": "Aa2" },
+        { "tranche_id": "t-a",      "name": "A",      "seniority": 3, "size_pct": 0.08, "coupon": "SOFR+240", "target_rating": "A2"  },
+        { "tranche_id": "t-bbb",    "name": "BBB",    "seniority": 4, "size_pct": 0.06, "coupon": "SOFR+340", "target_rating": "Baa3"},
+        { "tranche_id": "t-bb",     "name": "BB",     "seniority": 5, "size_pct": 0.06, "coupon": "SOFR+600", "target_rating": "Ba3" },
+        { "tranche_id": "t-equity", "name": "Equity", "seniority": 6, "size_pct": 0.09, "coupon": null,        "target_rating": null  }
+      ],
+
+      "structural_tests": {
+        "oc_tests": { "AAA": 1.42, "AA": 1.28, "A": 1.18, "BBB": 1.10 },
+        "ic_tests": { "AAA": 1.25, "AA": 1.15 },
+        "ccc_limit": 0.075
+      },
+
+      "market_assumptions": {
+        "default_rate": 0.03,
+        "recovery_rate": 0.65,
+        "spread_shock_bps": 0
+      }
+    },
+
+    {
+      "_label": "EU CLO — stress scenario inputs",
+      "deal_id": "deal-eu-bsl-001",
+      "name": "EU CLO I",
+      "issuer": "European Capital Partners SA",
+      "region": "EU",
+      "currency": "EUR",
+      "manager": "ECP Asset Management",
+      "close_date": null,
+      "notes": "EU deal — stress test for higher defaults and spread shock",
+
+      "collateral": {
+        "pool_id": "pool-002",
+        "asset_class": "broadly_syndicated_loans",
+        "portfolio_size": 400000000,
+        "was": 0.038,
+        "warf": 2600,
+        "wal": 4.8,
+        "diversity_score": 58,
+        "ccc_bucket": 0.040,
+        "concentrations": {
+          "top_obligor_pct": 0.020,
+          "top_industry_pct": 0.14
+        }
+      },
+
+      "liabilities": [
+        { "tranche_id": "t-aaa",    "name": "AAA",    "seniority": 1, "size_pct": 0.62, "coupon": "EURIBOR+140", "target_rating": "Aaa" },
+        { "tranche_id": "t-aa",     "name": "AA",     "seniority": 2, "size_pct": 0.09, "coupon": "EURIBOR+185", "target_rating": "Aa2" },
+        { "tranche_id": "t-a",      "name": "A",      "seniority": 3, "size_pct": 0.07, "coupon": "EURIBOR+230", "target_rating": "A2"  },
+        { "tranche_id": "t-bbb",    "name": "BBB",    "seniority": 4, "size_pct": 0.05, "coupon": "EURIBOR+320", "target_rating": "Baa3"},
+        { "tranche_id": "t-equity", "name": "Equity", "seniority": 5, "size_pct": 0.17, "coupon": null,          "target_rating": null  }
+      ],
+
+      "structural_tests": {
+        "oc_tests": { "AAA": 1.45, "AA": 1.30, "A": 1.19 },
+        "ic_tests": { "AAA": 1.28 },
+        "ccc_limit": 0.075
+      },
+
+      "market_assumptions": {
+        "default_rate": 0.05,
+        "recovery_rate": 0.55,
+        "spread_shock_bps": 50
+      }
+    },
+
+    {
+      "_label": "Minimal deal — missing optional fields",
+      "_note": "Tests validation with only required fields populated",
+      "deal_id": "deal-minimal-001",
+      "name": "Minimal Test CLO",
+      "issuer": "Test Issuer Ltd",
+
+      "collateral": {
+        "pool_id": "pool-minimal",
+        "asset_class": "broadly_syndicated_loans",
+        "portfolio_size": 300000000,
+        "diversity_score": 45,
+        "ccc_bucket": 0.03
+      },
+
+      "liabilities": [
+        { "tranche_id": "t-aaa",    "name": "AAA",    "seniority": 1, "size_pct": 0.70 },
+        { "tranche_id": "t-equity", "name": "Equity", "seniority": 2, "size_pct": 0.30 }
+      ]
+    }
+
+  ]
+}

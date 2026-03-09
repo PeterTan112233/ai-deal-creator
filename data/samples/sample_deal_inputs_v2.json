@@ -1,0 +1,59 @@
+{
+  "_note": "V2 of the US BSL deal — same structure as V1 but with stressed collateral and market assumptions. Used for comparison testing against sample_deal_inputs.json (deal-us-bsl-001).",
+  "_schema": "app/schemas/deal_input.schema.json",
+  "_label": "US BSL CLO — stressed inputs (v2)",
+
+  "deal_id": "deal-us-bsl-002",
+  "name": "Acme CLO I",
+  "issuer": "Acme Capital LLC",
+  "region": "US",
+  "currency": "USD",
+  "manager": "Acme Capital Management",
+  "close_date": "2025-09-15",
+  "notes": "Stressed version of deal-us-bsl-001 — higher defaults, lower recovery, spread widening",
+
+  "collateral": {
+    "pool_id": "pool-001",
+    "asset_class": "broadly_syndicated_loans",
+    "portfolio_size": 500000000,
+    "was": 0.042,
+    "warf": 2800,
+    "wal": 5.2,
+    "diversity_score": 58,
+    "ccc_bucket": 0.062,
+    "concentrations": {
+      "top_obligor_pct": 0.018,
+      "top_industry_pct": 0.12
+    }
+  },
+
+  "liabilities": [
+    { "tranche_id": "t-aaa",    "name": "AAA",    "seniority": 1, "size_pct": 0.61, "coupon": "SOFR+145", "target_rating": "Aaa" },
+    { "tranche_id": "t-aa",     "name": "AA",     "seniority": 2, "size_pct": 0.10, "coupon": "SOFR+195", "target_rating": "Aa2" },
+    { "tranche_id": "t-a",      "name": "A",      "seniority": 3, "size_pct": 0.08, "coupon": "SOFR+240", "target_rating": "A2"  },
+    { "tranche_id": "t-bbb",    "name": "BBB",    "seniority": 4, "size_pct": 0.06, "coupon": "SOFR+340", "target_rating": "Baa3"},
+    { "tranche_id": "t-bb",     "name": "BB",     "seniority": 5, "size_pct": 0.06, "coupon": "SOFR+600", "target_rating": "Ba3" },
+    { "tranche_id": "t-equity", "name": "Equity", "seniority": 6, "size_pct": 0.09, "coupon": null,        "target_rating": null  }
+  ],
+
+  "structural_tests": {
+    "oc_tests": { "AAA": 1.42, "AA": 1.28, "A": 1.18, "BBB": 1.10 },
+    "ic_tests": { "AAA": 1.25, "AA": 1.15 },
+    "ccc_limit": 0.075
+  },
+
+  "market_assumptions": {
+    "default_rate": 0.05,
+    "recovery_rate": 0.55,
+    "spread_shock_bps": 50
+  },
+
+  "_changes_vs_v1": {
+    "_note": "Reference only — documents what changed vs deal-us-bsl-001",
+    "collateral.diversity_score": "62 → 58  (pool quality deterioration)",
+    "collateral.ccc_bucket":      "0.055 → 0.062  (more CCC-rated assets)",
+    "market_assumptions.default_rate":     "0.03 → 0.05  (+2pp default rate)",
+    "market_assumptions.recovery_rate":    "0.65 → 0.55  (-10pp recovery)",
+    "market_assumptions.spread_shock_bps": "0 → 50  (+50 bps spread shock)"
+  }
+}

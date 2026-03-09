@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenario_request.schema.json",
+  "title": "ScenarioRequest",
+  "description": "Payload sent to the cashflow engine for a scenario run. Contains user-provided parameters only. No outputs, no run_id — those are returned by the engine. Produced by scenario-design-agent and submitted by model-execution-agent.",
+  "type": "object",
+
+  "required": ["scenario_id", "deal_id", "name", "scenario_type", "parameters"],
+
+  "properties": {
+
+    "scenario_id": {
+      "type": "string",
+      "description": "Unique scenario identifier. Created before submission.",
+      "minLength": 1
+    },
+
+    "deal_id": {
+      "type": "string",
+      "description": "Parent deal identifier. Must match a valid, validated deal.",
+      "minLength": 1
+    },
+
+    "name": {
+      "type": "string",
+      "description": "Human label for the scenario, e.g. 'Baseline', 'Stressed recoveries — 10pt down'.",
+      "minLength": 1
+    },
+
+    "scenario_type": {
+      "type": "string",
+      "description": "Scenario family classification.",
+      "enum": ["base", "stress", "custom"],
+      "default": "base"
+    },
+
+    "parameters": {
+      "description": "Engine input parameters. Must be non-empty before submission. Required keys: default_rate, recovery_rate, spread_shock_bps.",
+      "type": "object",
+      "required": ["default_rate", "recovery_rate", "spread_shock_bps"],
+      "properties": {
+        "default_rate": {
+          "type": "number",
+          "description": "Annual default rate as decimal (e.g. 0.03).",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recovery_rate": {
+          "type": "number",
+          "description": "Blended recovery rate as decimal (e.g. 0.65).",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "spread_shock_bps": {
+          "type": "number",
+          "description": "Spread shock in basis points.",
+          "minimum": 0
+        },
+        "prepayment_rate": {
+          "type": "number",
+          "description": "Annual CPR assumption. Optional.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "funding_cost_bps": {
+          "type": "number",
+          "description": "Additional funding cost overlay in bps. Optional.",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "assumptions_made": {
+      "type": "array",
+      "description": "List of assumptions scenario-design-agent applied when parameters were incomplete. Surfaced to the user before submission.",
+      "items": { "type": "string" }
+    },
+
+    "flagged_ambiguities": {
+      "type": "array",
+      "description": "Ambiguous or incomplete user instructions that were resolved conservatively. Must be reviewed by the user.",
+      "items": { "type": "string" }
+    },
+
+    "notes": {
+      "type": "string",
+      "nullable": true
+    }
+  },
+
+  "additionalProperties": false
+}

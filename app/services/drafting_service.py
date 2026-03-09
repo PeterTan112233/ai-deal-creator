@@ -1,0 +1,1025 @@
+"""
+app/services/drafting_service.py
+
+Deterministic template-based drafting service for investor summaries and IC memos.
+
+WHAT THIS SERVICE DOES
+  - Assembles a DraftDocument from structured deal inputs and scenario results
+  - Tags every section with its data source type ([retrieved] / [calculated] / [generated] / [placeholder])
+  - Renders a complete Markdown draft with prominent DRAFT banners
+  - Returns approved=False always — this service cannot approve documents
+
+WHAT THIS SERVICE DOES NOT DO
+  - Call an LLM (Phase 1 is fully deterministic template filling)
+  - Set approved=True under any condition
+  - Emit a "draft.published" event
+  - Fabricate values — missing fields render as "[DATA NOT PROVIDED]"
+  - Make investment recommendations or performance predictions
+
+DRAFT vs OFFICIAL
+  - Every draft carries draft_warnings listing what review is required before use
+  - is_mock=True drafts carry an additional prominent warning that all numbers are
+    synthetic placeholders not suitable for any official, marketing, or regulatory use
+
+Phase 2+:
+  - Replace section builders with LLM calls using app/prompts/*.md as prompt templates
+  - Inject structured context via {{variable}} markers defined in each prompt file
+  - Source approved boilerplate from approved-language-mcp instead of [PLACEHOLDER] markers
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+import uuid
+
+
+# ---------------------------------------------------------------------------
+# Document structure
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DraftSection:
+    section_id: str
+    title: str
+    content: str
+    source_tag: str               # "[retrieved]" | "[calculated]" | "[generated]" | "[placeholder]"
+    contains_generated_language: bool = False
+
+
+@dataclass
+class DraftDocument:
+    draft_id: str
+    draft_type: str               # "investor_summary" | "ic_memo"
+    title: str
+    deal_id: str
+    scenario_id: str
+    run_id: str
+    sections: List[DraftSection]
+    grounding_sources: List[Dict[str, Any]]
+    draft_warnings: List[str]
+    approved: bool = False        # Never set to True by this service
+    requires_approval: bool = True
+    is_mock: bool = True
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "draft_id": self.draft_id,
+            "draft_type": self.draft_type,
+            "title": self.title,
+            "deal_id": self.deal_id,
+            "scenario_id": self.scenario_id,
+            "run_id": self.run_id,
+            "sections": [
+                {
+                    "section_id": s.section_id,
+                    "title": s.title,
+                    "content": s.content,
+                    "source_tag": s.source_tag,
+                    "contains_generated_language": s.contains_generated_language,
+                }
+                for s in self.sections
+            ],
+            "grounding_sources": self.grounding_sources,
+            "draft_warnings": self.draft_warnings,
+            "approved": self.approved,
+            "requires_approval": self.requires_approval,
+            "is_mock": self.is_mock,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def to_markdown(self) -> str:
+        lines = [
+            "---",
+            "",
+            "# [DRAFT — NOT FOR DISTRIBUTION]",
+            "",
+            f"**Document:** {self.title}",
+            f"**Type:** `{self.draft_type}`",
+            f"**Draft ID:** `{self.draft_id}`",
+            f"**Approval status:** PENDING — `approved = False`",
+            f"**Requires approval:** {self.requires_approval}",
+            f"**Generated:** {self.created_at.isoformat() if self.created_at else 'N/A'}",
+            "",
+        ]
+
+        if self.is_mock:
+            lines += [
+                "> **[MOCK ENGINE — NOT OFFICIAL]**",
+                "> All numeric values in this draft are **synthetic placeholders**.",
+                "> These figures are NOT official CLO results and must not be used for",
+                "> investment, marketing, regulatory, or any other official purpose.",
+                "",
+            ]
+
+        for warning in self.draft_warnings:
+            lines += [f"> ⚠ {warning}", ""]
+
+        lines += ["---", ""]
+
+        for section in self.sections:
+            lines += [
+                f"## {section.title}  {section.source_tag}",
+                "",
+                section.content,
+                "",
+            ]
+
+        lines += [
+            "---",
+            "",
+            "## Grounding Sources",
+            "",
+        ]
+        for src in self.grounding_sources:
+            lines.append(f"- **{src['label']}** `{src['id']}` — fields used: {src['fields']}")
+
+        lines += [
+            "",
+            "---",
+            "",
+            f"*This draft was generated by the AI Deal Creator drafting service (Phase 1 — deterministic template).*",
+            f"*`approved = {self.approved}` — human review and approval required before any use.*",
+            f"*[APPROVAL REQUIRED BEFORE USE]*",
+        ]
+
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def generate_investor_summary(
+    deal_input: Dict[str, Any],
+    scenario_result: Dict[str, Any],
+    scenario_request: Optional[Dict[str, Any]] = None,
+) -> DraftDocument:
+    """
+    Generate an investor summary draft.
+
+    Returns a DraftDocument with approved=False.
+    All numbers are sourced directly from deal_input and scenario_result.
+    No LLM is called — Phase 1 is fully deterministic template filling.
+    """
+    is_mock = "_mock" in scenario_result
+    now = datetime.now(timezone.utc)
+    draft_id = f"draft-inv-{uuid.uuid4().hex[:8]}"
+
+    sections = [
+        _inv_section_draft_notice(deal_input, is_mock),
+        _inv_section_transaction_overview(deal_input),
+        _inv_section_portfolio_overview(deal_input),
+        _inv_section_tranche_summary(deal_input),
+        _inv_section_scenario_metrics(scenario_result, scenario_request, is_mock),
+        _inv_section_risk_considerations(deal_input, scenario_request, is_mock),
+        _inv_section_disclosures(),
+    ]
+
+    warnings = [
+        "This is a DRAFT document. It has not been reviewed, approved, or authorised for distribution.",
+        "Content must be verified by legal and compliance before any external use.",
+    ]
+    if is_mock:
+        warnings.append(
+            "All scenario metrics are MOCK ENGINE outputs — synthetic placeholders only. "
+            "Not suitable for investment, marketing, or regulatory purposes."
+        )
+
+    grounding_sources = _build_grounding_sources(deal_input, scenario_result, scenario_request)
+
+    return DraftDocument(
+        draft_id=draft_id,
+        draft_type="investor_summary",
+        title=f"{deal_input.get('name', 'Unknown Deal')} — Investor Summary [DRAFT]",
+        deal_id=deal_input.get("deal_id", "unknown"),
+        scenario_id=scenario_result.get("scenario_id", "unknown"),
+        run_id=scenario_result.get("run_id", "unknown"),
+        sections=sections,
+        grounding_sources=grounding_sources,
+        draft_warnings=warnings,
+        approved=False,
+        requires_approval=True,
+        is_mock=is_mock,
+        created_at=now,
+    )
+
+
+def generate_ic_memo(
+    deal_input: Dict[str, Any],
+    scenario_result: Dict[str, Any],
+    scenario_request: Optional[Dict[str, Any]] = None,
+    comparison_result: Optional[Dict[str, Any]] = None,
+) -> DraftDocument:
+    """
+    Generate an internal credit committee memo draft.
+
+    Returns a DraftDocument with approved=False.
+    IC memo is more technically detailed than the investor summary.
+    Comparison section is included if comparison_result is provided.
+    """
+    is_mock = "_mock" in scenario_result
+    now = datetime.now(timezone.utc)
+    draft_id = f"draft-ic-{uuid.uuid4().hex[:8]}"
+
+    sections = [
+        _ic_section_internal_notice(deal_input, is_mock),
+        _ic_section_deal_overview(deal_input),
+        _ic_section_collateral_analysis(deal_input),
+        _ic_section_liability_structure(deal_input),
+        _ic_section_scenario_parameters(deal_input, scenario_request),
+        _ic_section_scenario_outputs(scenario_result, is_mock),
+        _ic_section_structural_test_analysis(deal_input, scenario_result, is_mock),
+        _ic_section_scenario_comparison(comparison_result),
+        _ic_section_open_items(),
+        _ic_section_approval_gate(),
+    ]
+
+    warnings = [
+        "INTERNAL USE ONLY — this memo has not been approved for distribution.",
+        "Scenario outputs must be verified before any investment or structural decisions.",
+    ]
+    if is_mock:
+        warnings.append(
+            "All scenario outputs are MOCK ENGINE values — synthetic placeholders. "
+            "Replace model_engine_service with the real cashflow engine before using for analysis."
+        )
+
+    grounding_sources = _build_grounding_sources(deal_input, scenario_result, scenario_request)
+
+    return DraftDocument(
+        draft_id=draft_id,
+        draft_type="ic_memo",
+        title=f"{deal_input.get('name', 'Unknown Deal')} — IC Memo [INTERNAL DRAFT]",
+        deal_id=deal_input.get("deal_id", "unknown"),
+        scenario_id=scenario_result.get("scenario_id", "unknown"),
+        run_id=scenario_result.get("run_id", "unknown"),
+        sections=sections,
+        grounding_sources=grounding_sources,
+        draft_warnings=warnings,
+        approved=False,
+        requires_approval=True,
+        is_mock=is_mock,
+        created_at=now,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Investor summary section builders
+# ---------------------------------------------------------------------------
+
+def _inv_section_draft_notice(deal_input: Dict, is_mock: bool) -> DraftSection:
+    lines = [
+        "**[DRAFT — NOT FOR DISTRIBUTION]**",
+        "",
+        f"This document is a preliminary draft for internal review only.",
+        f"It has not been approved for distribution to investors or any third party.",
+        f"**Approval status: PENDING — `approved = False`**",
+    ]
+    if is_mock:
+        lines += [
+            "",
+            "**[MOCK ENGINE — NOT OFFICIAL]**",
+            "Scenario metrics in this draft are based on mock engine outputs.",
+            "These values are synthetic placeholders and must not be used as official CLO metrics.",
+        ]
+    return DraftSection(
+        section_id="draft-notice",
+        title="Draft Notice",
+        content="\n".join(lines),
+        source_tag="[placeholder]",
+    )
+
+
+def _inv_section_transaction_overview(deal_input: Dict) -> DraftSection:
+    ccy = deal_input.get("currency", "USD")
+    collateral = deal_input.get("collateral", {})
+    size = collateral.get("portfolio_size")
+
+    lines = [
+        f"**Deal name:** {deal_input.get('name', '[DATA NOT PROVIDED]')}",
+        f"**Issuer:** {deal_input.get('issuer', '[DATA NOT PROVIDED]')}",
+        f"**Manager:** {deal_input.get('manager', '[DATA NOT PROVIDED]')}",
+        f"**Region:** {deal_input.get('region', '[DATA NOT PROVIDED]')}",
+        f"**Currency:** {ccy}",
+        f"**Portfolio size:** {_fmt_currency(size, ccy)}",
+        f"**Close date:** {deal_input.get('close_date', '[DATA NOT PROVIDED]')}",
+    ]
+    if deal_input.get("notes"):
+        lines.append(f"**Notes:** {deal_input['notes']}")
+
+    return DraftSection(
+        section_id="transaction-overview",
+        title="Transaction Overview",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _inv_section_portfolio_overview(deal_input: Dict) -> DraftSection:
+    c = deal_input.get("collateral", {})
+    ccy = deal_input.get("currency", "USD")
+
+    rows = [
+        ("Asset class",    c.get("asset_class"),    None),
+        ("Portfolio size", _fmt_currency(c.get("portfolio_size"), ccy), None),
+        ("WAS",            _fmt_pct(c.get("was")),  None),
+        ("WARF",           c.get("warf"),            None),
+        ("WAL",            _fmt_years(c.get("wal")), None),
+        ("Diversity score",c.get("diversity_score"), None),
+        ("CCC bucket",     _fmt_pct(c.get("ccc_bucket")), None),
+    ]
+
+    lines = ["| Metric | Value |", "|---|---|"]
+    for label, val, _ in rows:
+        display = str(val) if val is not None else "[DATA NOT PROVIDED]"
+        lines.append(f"| {label} | {display} |")
+
+    return DraftSection(
+        section_id="portfolio-overview",
+        title="Portfolio Overview",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _inv_section_tranche_summary(deal_input: Dict) -> DraftSection:
+    tranches = deal_input.get("liabilities", [])
+    if not tranches:
+        return DraftSection(
+            section_id="tranche-summary",
+            title="Tranche Summary",
+            content="[DATA NOT PROVIDED — no tranches in deal input]",
+            source_tag="[retrieved]",
+        )
+
+    lines = ["| Tranche | Size (% of deal) | Target Rating |", "|---|---|---|"]
+    for t in sorted(tranches, key=lambda x: x.get("seniority", 99)):
+        name = t.get("name", "N/A")
+        size = _fmt_pct(t.get("size_pct"))
+        rating = t.get("target_rating") or "N/A"
+        lines.append(f"| {name} | {size} | {rating} |")
+
+    lines += [
+        "",
+        "*Coupon spreads are not included in this investor-facing summary draft.*",
+        "*[PLACEHOLDER: Confirm tranche sizing and ratings with structuring team before distribution]*",
+    ]
+
+    return DraftSection(
+        section_id="tranche-summary",
+        title="Tranche Summary",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _inv_section_scenario_metrics(
+    scenario_result: Dict, scenario_request: Optional[Dict], is_mock: bool
+) -> DraftSection:
+    outputs = scenario_result.get("outputs", {})
+    run_id = scenario_result.get("run_id", "N/A")
+    source_tag = "[mock — NOT official]" if is_mock else "[calculated]"
+    params = (scenario_request or {}).get("parameters", {})
+    scenario_name = (scenario_request or {}).get("name", "N/A")
+    scenario_type = (scenario_request or {}).get("scenario_type", "N/A")
+
+    lines = []
+    if is_mock:
+        lines += [
+            "**[MOCK ENGINE — NOT OFFICIAL]** — values below are synthetic placeholders only.",
+            "",
+        ]
+
+    lines += [
+        f"**Scenario:** {scenario_name} ({scenario_type})",
+        f"**Run ID:** `{run_id}`",
+        "",
+        "**Assumptions applied to this scenario:**",
+        "",
+        f"| Parameter | Value |",
+        "|---|---|",
+        f"| Default rate | {_fmt_pct(params.get('default_rate'))} |",
+        f"| Recovery rate | {_fmt_pct(params.get('recovery_rate'))} |",
+        f"| Spread shock | {params.get('spread_shock_bps', 'N/A')} bps |",
+        "",
+        "**Scenario metrics** (as modelled):",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+    ]
+
+    metric_labels = [
+        ("equity_irr",     "Equity IRR",        _fmt_pct),
+        ("aaa_size_pct",   "AAA size",           _fmt_pct),
+        ("wac",            "WAC (liabilities)",  _fmt_pct),
+        ("oc_cushion_aaa", "OC cushion (AAA)",   _fmt_pct),
+        ("ic_cushion_aaa", "IC cushion (AAA)",   _fmt_pct),
+        ("equity_wal",     "Equity WAL",         _fmt_years),
+    ]
+    for key, label, formatter in metric_labels:
+        val = outputs.get(key)
+        display = formatter(val) if val is not None else "[DATA NOT PROVIDED]"
+        mock_marker = " [mock]" if is_mock else " [calculated]"
+        lines.append(f"| {label} | {display}{mock_marker} |")
+
+    if is_mock:
+        lines += [
+            "",
+            "*As modelled — synthetic placeholder values only. "
+            "Replace with official engine outputs before any use.*",
+        ]
+
+    return DraftSection(
+        section_id="scenario-metrics",
+        title="Scenario Metrics",
+        content="\n".join(lines),
+        source_tag=source_tag,
+    )
+
+
+def _inv_section_risk_considerations(
+    deal_input: Dict, scenario_request: Optional[Dict], is_mock: bool
+) -> DraftSection:
+    """
+    Conservative risk section. Each category is anchored to deal data where possible
+    and ends with a [PLACEHOLDER] marker for compliance-drafted disclosure text.
+    No performance claims or loss predictions are made.
+    """
+    c = deal_input.get("collateral", {})
+    params = (scenario_request or {}).get("parameters", {})
+    tests = deal_input.get("structural_tests", {})
+
+    dr = params.get("default_rate")
+    rr = params.get("recovery_rate")
+    ccc = c.get("ccc_bucket")
+    ccc_limit = tests.get("ccc_limit")
+    diversity = c.get("diversity_score")
+
+    lines = [
+        "The following standard CLO risk categories apply to this transaction type.",
+        "This section is a **generated structural outline** [generated]; it is not legal advice.",
+        "All disclosure language below is a placeholder requiring compliance and legal review.",
+        "",
+        "---",
+        "",
+        "**Credit Risk**",
+    ]
+    if dr is not None:
+        lines.append(
+            f"The baseline scenario applies an annual default rate of {_fmt_pct(dr)} to the collateral pool."
+        )
+    if rr is not None:
+        lines.append(
+            f"Recovery is assumed at {_fmt_pct(rr)} on defaulted assets in this scenario."
+        )
+    lines += [
+        "[PLACEHOLDER: Insert credit risk disclosure — confirm with legal/compliance]",
+        "",
+        "**Interest Rate Risk**",
+        "The liabilities in this transaction include floating-rate tranches linked to a reference rate.",
+        "[PLACEHOLDER: Insert interest rate risk disclosure — confirm applicable benchmark]",
+        "",
+        "**Prepayment and Extension Risk**",
+    ]
+    wal = c.get("wal")
+    if wal is not None:
+        lines.append(f"The collateral pool has a weighted average life of {_fmt_years(wal)} as modelled.")
+    lines += [
+        "[PLACEHOLDER: Insert prepayment and extension risk disclosure]",
+        "",
+        "**Liquidity Risk**",
+        "CLO equity and mezzanine tranches may be subject to limited secondary market liquidity.",
+        "[PLACEHOLDER: Insert liquidity risk disclosure — confirm with legal/compliance]",
+        "",
+        "**Concentration Risk**",
+    ]
+    if diversity is not None:
+        lines.append(f"The pool has a diversity score of {diversity} as of the modelling date.")
+    lines += [
+        "[PLACEHOLDER: Insert concentration risk disclosure — confirm obligor and industry limits]",
+        "",
+        "**Structural and Subordination Risk**",
+    ]
+    if ccc is not None and ccc_limit is not None:
+        lines.append(
+            f"CCC-rated collateral represents {_fmt_pct(ccc)} of the pool against a structural limit of {_fmt_pct(ccc_limit)}."
+        )
+    lines += [
+        "[PLACEHOLDER: Insert structural risk disclosure — confirm OC/IC test descriptions]",
+        "",
+        "---",
+        "",
+        "*This risk section is a [generated] structural outline anchored to deal inputs.*",
+        "*All [PLACEHOLDER] items must be replaced with approved language before distribution.*",
+    ]
+
+    return DraftSection(
+        section_id="risk-considerations",
+        title="Key Risk Considerations",
+        content="\n".join(lines),
+        source_tag="[generated + placeholder]",
+        contains_generated_language=True,
+    )
+
+
+def _inv_section_disclosures() -> DraftSection:
+    lines = [
+        "**[PLACEHOLDER: Regulatory disclosure — insert applicable jurisdiction notice]**",
+        "",
+        "**[PLACEHOLDER: Offering memorandum reference — confirm document version and date]**",
+        "",
+        "**[PLACEHOLDER: Legal entity and domicile confirmation]**",
+        "",
+        "**[PLACEHOLDER: Forward-looking statements disclaimer]**",
+        "",
+        "**[PLACEHOLDER: Past performance disclaimer]**",
+        "",
+        "---",
+        "",
+        "*All placeholders above must be completed by legal and compliance before this document is distributed.*",
+        "*[APPROVAL REQUIRED BEFORE USE]*",
+    ]
+    return DraftSection(
+        section_id="disclosures",
+        title="Disclosures and Notices",
+        content="\n".join(lines),
+        source_tag="[placeholder]",
+    )
+
+
+# ---------------------------------------------------------------------------
+# IC memo section builders
+# ---------------------------------------------------------------------------
+
+def _ic_section_internal_notice(deal_input: Dict, is_mock: bool) -> DraftSection:
+    lines = [
+        "**[INTERNAL DRAFT — NOT FOR EXTERNAL DISTRIBUTION]**",
+        "",
+        f"**Deal:** {deal_input.get('name', '[DATA NOT PROVIDED]')}",
+        f"**Deal ID:** `{deal_input.get('deal_id', '[DATA NOT PROVIDED]')}`",
+        f"**Approval status: PENDING — `approved = False`**",
+        "",
+        "This document is for internal deal team and credit committee review only.",
+        "Distribution outside the deal team requires explicit approval.",
+    ]
+    if is_mock:
+        lines += [
+            "",
+            "**[MOCK ENGINE — NOT OFFICIAL]**",
+            "All scenario outputs are synthetic placeholders.",
+            "Do not use for credit analysis, investment decisions, or reporting until replaced with official engine outputs.",
+        ]
+    return DraftSection(
+        section_id="internal-notice",
+        title="Internal Draft Notice",
+        content="\n".join(lines),
+        source_tag="[placeholder]",
+    )
+
+
+def _ic_section_deal_overview(deal_input: Dict) -> DraftSection:
+    lines = [
+        f"| Field | Value |",
+        "|---|---|",
+        f"| Deal ID | `{deal_input.get('deal_id', '[DATA NOT PROVIDED]')}` |",
+        f"| Name | {deal_input.get('name', '[DATA NOT PROVIDED]')} |",
+        f"| Issuer | {deal_input.get('issuer', '[DATA NOT PROVIDED]')} |",
+        f"| Manager | {deal_input.get('manager', '[DATA NOT PROVIDED]')} |",
+        f"| Region | {deal_input.get('region', '[DATA NOT PROVIDED]')} |",
+        f"| Currency | {deal_input.get('currency', '[DATA NOT PROVIDED]')} |",
+        f"| Close date | {deal_input.get('close_date', '[DATA NOT PROVIDED]')} |",
+    ]
+    if deal_input.get("notes"):
+        lines.append(f"| Notes | {deal_input['notes']} |")
+
+    return DraftSection(
+        section_id="deal-overview",
+        title="Deal Overview",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _ic_section_collateral_analysis(deal_input: Dict) -> DraftSection:
+    c = deal_input.get("collateral", {})
+    ccy = deal_input.get("currency", "USD")
+    tests = deal_input.get("structural_tests", {})
+    ccc_limit = tests.get("ccc_limit")
+    conc = c.get("concentrations", {})
+
+    lines = [
+        "| Metric | Value | Structural Limit |",
+        "|---|---|---|",
+        f"| Asset class | {c.get('asset_class', '[DATA NOT PROVIDED]')} | — |",
+        f"| Portfolio size | {_fmt_currency(c.get('portfolio_size'), ccy)} | — |",
+        f"| WAS | {_fmt_pct(c.get('was'))} | — |",
+        f"| WARF | {c.get('warf', '[DATA NOT PROVIDED]')} | — |",
+        f"| WAL | {_fmt_years(c.get('wal'))} | — |",
+        f"| Diversity score | {c.get('diversity_score', '[DATA NOT PROVIDED]')} | — |",
+        f"| CCC bucket | {_fmt_pct(c.get('ccc_bucket'))} | {_fmt_pct(ccc_limit) if ccc_limit else '—'} |",
+    ]
+
+    if conc:
+        lines += [
+            "",
+            "**Concentration metrics:**",
+            "",
+            f"| Metric | Value |",
+            "|---|---|",
+            f"| Top obligor | {_fmt_pct(conc.get('top_obligor_pct'))} |",
+            f"| Top industry | {_fmt_pct(conc.get('top_industry_pct'))} |",
+        ]
+
+    return DraftSection(
+        section_id="collateral-analysis",
+        title="Collateral Analysis",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _ic_section_liability_structure(deal_input: Dict) -> DraftSection:
+    tranches = deal_input.get("liabilities", [])
+    if not tranches:
+        return DraftSection(
+            section_id="liability-structure",
+            title="Liability Structure",
+            content="[DATA NOT PROVIDED — no tranches in deal input]",
+            source_tag="[retrieved]",
+        )
+
+    lines = [
+        "| Tranche ID | Name | Seniority | Size (%) | Coupon | Target Rating |",
+        "|---|---|---|---|---|---|",
+    ]
+    total_pct = 0.0
+    for t in sorted(tranches, key=lambda x: x.get("seniority", 99)):
+        size = t.get("size_pct", 0)
+        total_pct += size if isinstance(size, (int, float)) else 0
+        lines.append(
+            f"| `{t.get('tranche_id', 'N/A')}` "
+            f"| {t.get('name', 'N/A')} "
+            f"| {t.get('seniority', 'N/A')} "
+            f"| {_fmt_pct(t.get('size_pct'))} "
+            f"| {t.get('coupon') or '—'} "
+            f"| {t.get('target_rating') or '—'} |"
+        )
+
+    lines += [
+        "",
+        f"**Total size_pct sum:** {_fmt_pct(total_pct)}"
+        + (" ⚠ Does not sum to 100%" if abs(total_pct - 1.0) > 0.001 else " ✓"),
+    ]
+    return DraftSection(
+        section_id="liability-structure",
+        title="Liability Structure",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _ic_section_scenario_parameters(
+    deal_input: Dict, scenario_request: Optional[Dict]
+) -> DraftSection:
+    if scenario_request:
+        params = scenario_request.get("parameters", {})
+        name = scenario_request.get("name", "N/A")
+        stype = scenario_request.get("scenario_type", "N/A")
+        assumptions = scenario_request.get("assumptions_made", [])
+        ambiguities = scenario_request.get("flagged_ambiguities", [])
+        source = "scenario_request"
+    else:
+        mkt = deal_input.get("market_assumptions", {})
+        params = mkt
+        name = "Baseline (from market_assumptions)"
+        stype = "base"
+        assumptions = []
+        ambiguities = []
+        source = "deal_input.market_assumptions"
+
+    lines = [
+        f"**Scenario name:** {name}",
+        f"**Scenario type:** {stype}",
+        f"**Parameter source:** `{source}`",
+        "",
+        "| Parameter | Value |",
+        "|---|---|",
+        f"| Default rate | {_fmt_pct(params.get('default_rate'))} |",
+        f"| Recovery rate | {_fmt_pct(params.get('recovery_rate'))} |",
+        f"| Spread shock | {params.get('spread_shock_bps', '[DATA NOT PROVIDED]')} bps |",
+    ]
+
+    if assumptions:
+        lines += ["", "**Assumptions applied by service:**"]
+        for a in assumptions:
+            lines.append(f"- {a}")
+
+    if ambiguities:
+        lines += ["", "**Ambiguities flagged:**"]
+        for a in ambiguities:
+            lines.append(f"- ⚠ {a}")
+
+    return DraftSection(
+        section_id="scenario-parameters",
+        title="Scenario Parameters",
+        content="\n".join(lines),
+        source_tag="[retrieved]",
+    )
+
+
+def _ic_section_scenario_outputs(scenario_result: Dict, is_mock: bool) -> DraftSection:
+    outputs = {k: v for k, v in scenario_result.get("outputs", {}).items() if not k.startswith("_")}
+    run_id = scenario_result.get("run_id", "N/A")
+    executed_at = scenario_result.get("executed_at", "N/A")
+    source_tag = "[mock — NOT official]" if is_mock else "[calculated]"
+
+    lines = []
+    if is_mock:
+        lines += [
+            "**[MOCK ENGINE — NOT OFFICIAL]** — all values below are synthetic placeholders.",
+            "",
+        ]
+    lines += [
+        f"**Run ID:** `{run_id}`",
+        f"**Executed:** {executed_at}",
+        f"**Source:** {scenario_result.get('source', 'N/A')}",
+        "",
+        "| Output | Value | Tag |",
+        "|---|---|---|",
+    ]
+
+    metric_labels = [
+        ("equity_irr",     "Equity IRR",        _fmt_pct),
+        ("aaa_size_pct",   "AAA size",           _fmt_pct),
+        ("wac",            "WAC (liabilities)",  _fmt_pct),
+        ("oc_cushion_aaa", "OC cushion (AAA)",   _fmt_pct),
+        ("ic_cushion_aaa", "IC cushion (AAA)",   _fmt_pct),
+        ("equity_wal",     "Equity WAL",         _fmt_years),
+        ("scenario_npv",   "Scenario NPV",       _fmt_npv),
+    ]
+    tag = "[mock]" if is_mock else "[calculated]"
+    for key, label, formatter in metric_labels:
+        val = outputs.get(key)
+        display = formatter(val) if val is not None else "[DATA NOT PROVIDED]"
+        lines.append(f"| {label} | {display} | {tag} |")
+
+    engine_warnings = scenario_result.get("engine_warnings", [])
+    if engine_warnings:
+        lines += ["", "**Engine warnings:**"]
+        for w in engine_warnings:
+            lines.append(f"- ⚠ {w}")
+
+    return DraftSection(
+        section_id="scenario-outputs",
+        title="Scenario Outputs",
+        content="\n".join(lines),
+        source_tag=source_tag,
+    )
+
+
+def _ic_section_structural_test_analysis(
+    deal_input: Dict, scenario_result: Dict, is_mock: bool
+) -> DraftSection:
+    tests = deal_input.get("structural_tests", {})
+    oc_tests = tests.get("oc_tests", {})
+    ic_tests = tests.get("ic_tests", {})
+    ccc_limit = tests.get("ccc_limit")
+    outputs = scenario_result.get("outputs", {})
+    oc_cushion = outputs.get("oc_cushion_aaa")
+    ic_cushion = outputs.get("ic_cushion_aaa")
+    ccc_actual = deal_input.get("collateral", {}).get("ccc_bucket")
+    hedge = " [mock — illustrative only]" if is_mock else " [calculated]"
+
+    lines = []
+    if is_mock:
+        lines += [
+            "**[MOCK ENGINE — NOT OFFICIAL]** — cushion values are synthetic.",
+            "Do not assert pass/fail based on these figures.",
+            "",
+        ]
+
+    if oc_tests:
+        lines += ["**OC Tests:**", "", "| Test | Threshold | Cushion (modelled) | Status |", "|---|---|---|---|"]
+        for test_name, threshold in oc_tests.items():
+            cushion_val = oc_cushion if test_name == "AAA" else None
+            cushion_str = _fmt_pct(cushion_val) + hedge if cushion_val is not None else "[DATA NOT PROVIDED]"
+            status = "[PLACEHOLDER: confirm]" if is_mock else (
+                "PASS" if cushion_val and cushion_val > 0 else "REVIEW REQUIRED"
+            )
+            lines.append(f"| OC — {test_name} | {threshold:.2f}x | {cushion_str} | {status} |")
+    else:
+        lines.append("OC test thresholds: [DATA NOT PROVIDED]")
+
+    lines.append("")
+
+    if ic_tests:
+        lines += ["**IC Tests:**", "", "| Test | Threshold | Cushion (modelled) | Status |", "|---|---|---|---|"]
+        for test_name, threshold in ic_tests.items():
+            cushion_val = ic_cushion if test_name == "AAA" else None
+            cushion_str = _fmt_pct(cushion_val) + hedge if cushion_val is not None else "[DATA NOT PROVIDED]"
+            status = "[PLACEHOLDER: confirm]" if is_mock else (
+                "PASS" if cushion_val and cushion_val > 0 else "REVIEW REQUIRED"
+            )
+            lines.append(f"| IC — {test_name} | {threshold:.2f}x | {cushion_str} | {status} |")
+    else:
+        lines.append("IC test thresholds: [DATA NOT PROVIDED]")
+
+    lines.append("")
+
+    if ccc_limit is not None and ccc_actual is not None:
+        headroom = ccc_limit - ccc_actual
+        lines += [
+            f"**CCC bucket:** {_fmt_pct(ccc_actual)} vs limit {_fmt_pct(ccc_limit)} "
+            f"(headroom: {_fmt_pct(headroom)})"
+        ]
+
+    lines += [
+        "",
+        "*Structural test analysis is based on [retrieved] test thresholds and "
+        + ("[mock] cushion outputs. " if is_mock else "[calculated] cushion outputs. ") +
+        "Pass/fail determination requires official engine output.*",
+    ]
+
+    return DraftSection(
+        section_id="structural-test-analysis",
+        title="Structural Test Analysis",
+        content="\n".join(lines),
+        source_tag="[retrieved + mock]" if is_mock else "[retrieved + calculated]",
+    )
+
+
+def _ic_section_scenario_comparison(comparison_result: Optional[Dict]) -> DraftSection:
+    if comparison_result is None:
+        content = "[DATA NOT PROVIDED — no comparison scenario available]\n\nProvide comparison_result to enable this section."
+        return DraftSection(
+            section_id="scenario-comparison",
+            title="Scenario Comparison",
+            content=content,
+            source_tag="[placeholder]",
+        )
+
+    sc = comparison_result.get("scenario_comparison") or comparison_result
+    param_changes = sc.get("param_changes", [])
+    output_changes = sc.get("output_changes", [])
+    drivers = sc.get("likely_drivers", [])
+
+    lines = []
+
+    if param_changes:
+        lines += ["**Changed parameters** [retrieved]:", ""]
+        for c in param_changes:
+            v1, v2 = c.get("v1"), c.get("v2")
+            direction = c.get("direction", "changed")
+            arrow = "↑" if direction == "up" else ("↓" if direction == "down" else "→")
+            lines.append(f"- {c.get('label', c.get('field'))}: {v1} {arrow} {v2}")
+    else:
+        lines.append("No parameter changes between scenarios.")
+
+    lines.append("")
+
+    if output_changes:
+        lines += ["**Changed outputs** [calculated/mock]:", ""]
+        for c in output_changes:
+            v1, v2 = c.get("v1"), c.get("v2")
+            direction = c.get("direction", "changed")
+            arrow = "↑" if direction == "up" else ("↓" if direction == "down" else "→")
+            lines.append(f"- {c.get('label', c.get('field'))}: {v1} {arrow} {v2}")
+    else:
+        lines.append("No output changes detected.")
+
+    lines.append("")
+
+    if drivers:
+        lines += ["**Likely drivers** [generated — heuristic, not model-attributed]:", ""]
+        for d in drivers:
+            lines.append(f"- {d['statement']}")
+        lines += [
+            "",
+            "*Driver statements are heuristic inferences only. No cashflow attribution is performed.*",
+        ]
+    else:
+        lines.append("*No clear directional driver pattern identified.*")
+
+    return DraftSection(
+        section_id="scenario-comparison",
+        title="Scenario Comparison",
+        content="\n".join(lines),
+        source_tag="[calculated/mock + generated]",
+        contains_generated_language=bool(drivers),
+    )
+
+
+def _ic_section_open_items() -> DraftSection:
+    lines = [
+        "[PLACEHOLDER: List open diligence items]",
+        "",
+        "[PLACEHOLDER: Confirm rating agency methodology applied to this transaction]",
+        "",
+        "[PLACEHOLDER: Legal documentation status — confirm all transaction documents are in order]",
+        "",
+        "[PLACEHOLDER: Any waivers or exceptions to structural tests — list and obtain approval]",
+        "",
+        "[PLACEHOLDER: Confirm hedge arrangements if applicable]",
+        "",
+        "[PLACEHOLDER: Additional committee questions]",
+    ]
+    return DraftSection(
+        section_id="open-items",
+        title="Open Items",
+        content="\n".join(lines),
+        source_tag="[placeholder]",
+    )
+
+
+def _ic_section_approval_gate() -> DraftSection:
+    lines = [
+        "**Current status: PENDING APPROVAL**",
+        "",
+        f"**`approved = False`** — this document has not been approved for distribution.",
+        "",
+        "[PLACEHOLDER: List required approvers — e.g., Head of Structuring, Legal, Compliance]",
+        "",
+        "[PLACEHOLDER: Describe the review and approval process for this deal]",
+        "",
+        "**Distribution restriction:** INTERNAL USE ONLY until `approved = True` is set via the approval workflow.",
+        "",
+        "*The approval status of this draft can only be updated through the deal approval workflow.*",
+        "*It cannot be set to approved by the drafting service or any automated process.*",
+    ]
+    return DraftSection(
+        section_id="approval-gate",
+        title="Approval Gate",
+        content="\n".join(lines),
+        source_tag="[placeholder]",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _build_grounding_sources(
+    deal_input: Dict,
+    scenario_result: Dict,
+    scenario_request: Optional[Dict],
+) -> List[Dict[str, Any]]:
+    sources = [
+        {
+            "label": "deal_input",
+            "id": deal_input.get("deal_id", "unknown"),
+            "fields": "name, issuer, collateral.*, liabilities.*, structural_tests.*, market_assumptions.*",
+        },
+        {
+            "label": "scenario_result",
+            "id": scenario_result.get("run_id", "unknown"),
+            "fields": "outputs.{equity_irr, aaa_size_pct, wac, oc_cushion_aaa, ic_cushion_aaa, equity_wal, scenario_npv}",
+        },
+    ]
+    if scenario_request:
+        sources.append({
+            "label": "scenario_request",
+            "id": scenario_request.get("scenario_id", "unknown"),
+            "fields": "name, scenario_type, parameters.{default_rate, recovery_rate, spread_shock_bps}",
+        })
+    return sources
+
+
+def _fmt_pct(value: Any) -> str:
+    if value is None:
+        return "[DATA NOT PROVIDED]"
+    try:
+        return f"{value:.2%}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_years(value: Any) -> str:
+    if value is None:
+        return "[DATA NOT PROVIDED]"
+    try:
+        return f"{value:.1f} yrs"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_currency(value: Any, currency: str = "USD") -> str:
+    if value is None:
+        return "[DATA NOT PROVIDED]"
+    try:
+        if value >= 1_000_000_000:
+            return f"{currency} {value / 1_000_000_000:.2f}bn"
+        if value >= 1_000_000:
+            return f"{currency} {value / 1_000_000:.0f}m"
+        return f"{currency} {value:,.0f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_npv(value: Any) -> str:
+    if value is None:
+        return "[DATA NOT PROVIDED]"
+    try:
+        return f"{value:,.0f}"
+    except (TypeError, ValueError):
+        return str(value)

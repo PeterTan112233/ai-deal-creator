@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "approval_record.schema.json",
+  "title": "ApprovalRecord",
+  "description": "Approval lifecycle record gating internal review and external publication. Claude agents may create and read approval records but must never set status to 'approved' — that action is reserved for human approvers.",
+  "type": "object",
+
+  "required": ["approval_id", "deal_id", "draft_id", "draft_type", "channel", "status"],
+
+  "properties": {
+
+    "approval_id": {
+      "type": "string",
+      "description": "Unique approval record identifier.",
+      "minLength": 1
+    },
+
+    "deal_id": {
+      "type": "string",
+      "description": "Parent deal this approval belongs to."
+    },
+
+    "draft_id": {
+      "type": "string",
+      "description": "ID of the draft document requiring approval."
+    },
+
+    "draft_type": {
+      "type": "string",
+      "description": "The type of draft being approved.",
+      "enum": ["investor_summary", "ic_memo", "unknown"]
+    },
+
+    "channel": {
+      "type": "string",
+      "description": "Publication or distribution channel. Determines which approval rules and disclaimers apply.",
+      "enum": ["internal", "external"],
+      "default": "internal"
+    },
+
+    "status": {
+      "type": "string",
+      "description": "Lifecycle state of the approval. Only a human approver may set this to 'approved'.",
+      "enum": ["pending", "approved", "rejected"],
+      "default": "pending"
+    },
+
+    "requested_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp when approval was requested (UTC ISO 8601)."
+    },
+
+    "requested_by": {
+      "type": ["string", "null"],
+      "description": "User or agent identity that created this approval request."
+    },
+
+    "approver": {
+      "type": ["string", "null"],
+      "description": "Identity of the human approver. Set only when status transitions to 'approved' or 'rejected'."
+    },
+
+    "approved_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp of the approval action (UTC ISO 8601). Null until approved."
+    },
+
+    "rejected_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp of the rejection action (UTC ISO 8601). Null unless rejected."
+    },
+
+    "rejection_reason": {
+      "type": ["string", "null"],
+      "description": "Required when status = 'rejected'. Explains what must change before re-submission."
+    },
+
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Free-text context from the requester or reviewer."
+    }
+  },
+
+  "if": {
+    "properties": { "status": { "const": "rejected" } }
+  },
+  "then": {
+    "required": ["rejection_reason"],
+    "properties": {
+      "rejection_reason": { "type": "string", "minLength": 1 }
+    }
+  },
+
+  "additionalProperties": false
+}

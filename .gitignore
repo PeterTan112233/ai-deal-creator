@@ -1,0 +1,24 @@
+# Local Claude Code settings (private, do not commit)
+.claude/settings.local.json
+
+# Environment files
+.env
+.env.*
+secrets/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+dist/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Test cache
+.pytest_cache/
+
+# Audit log (runtime data — do not commit)
+data/audit_log.jsonl

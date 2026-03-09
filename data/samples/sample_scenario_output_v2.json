@@ -1,0 +1,48 @@
+{
+  "_note": "Sample ScenarioResult V2 — stressed outputs corresponding to deal-us-bsl-002 / sample_deal_inputs_v2.json. All values are MOCK placeholders consistent with the stressed input parameters.",
+  "_schema": "app/schemas/scenario_result.schema.json",
+  "_warning": "All metric values below are MOCK placeholders. Not official CLO results.",
+
+  "run_id": "mock-run-b5c6d7e8",
+  "scenario_id": "sc-deal-us-bsl-002-7g8h1i",
+  "deal_id": "deal-us-bsl-002",
+  "source": "model_runner",
+  "status": "complete",
+  "executed_at": "2025-08-01T14:35:00Z",
+
+  "parameters": {
+    "default_rate": 0.05,
+    "recovery_rate": 0.55,
+    "spread_shock_bps": 50
+  },
+
+  "outputs": {
+    "_comment": "All values [mock] — consistent with stressed inputs (higher default, lower recovery, spread shock)",
+    "equity_irr":     0.108,
+    "aaa_size_pct":   0.590,
+    "wac":            0.046,
+    "oc_cushion_aaa": 0.038,
+    "ic_cushion_aaa": 0.022,
+    "equity_wal":     13.1,
+    "scenario_npv":   1420000.0
+  },
+
+  "engine_warnings": [
+    "MOCK ENGINE: outputs are synthetic placeholders. Replace model_engine_service with real cashflow-engine-mcp in Phase 2."
+  ],
+
+  "engine_errors": [],
+
+  "_mock": "MOCK_ENGINE_OUTPUT",
+
+  "_changes_vs_v1_output": {
+    "_note": "Reference only — expected directional changes vs sample_scenario_output.json",
+    "equity_irr":     "0.142 → 0.108  (↓ consistent with higher defaults + lower recovery + spread shock)",
+    "aaa_size_pct":   "0.610 → 0.590  (↓ slightly lower senior sizing under stress)",
+    "wac":            "0.038 → 0.046  (↑ consistent with +50 bps spread shock)",
+    "oc_cushion_aaa": "0.052 → 0.038  (↓ consistent with higher defaults + lower recovery)",
+    "ic_cushion_aaa": "0.031 → 0.022  (↓ consistent with higher defaults)",
+    "equity_wal":     "12.4 → 13.1  (↑ longer recovery horizon under stress)",
+    "scenario_npv":   "1820000 → 1420000  (↓ lower value under stress assumptions)"
+  }
+}

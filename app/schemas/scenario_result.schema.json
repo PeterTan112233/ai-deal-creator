@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenario_result.schema.json",
+  "title": "ScenarioResult",
+  "description": "Output returned by the cashflow engine after a completed scenario run. All metric fields are engine-computed. The source field must always be 'model_runner'. Never populate these fields manually.",
+  "type": "object",
+
+  "required": ["run_id", "scenario_id", "deal_id", "source", "status", "executed_at"],
+
+  "properties": {
+
+    "run_id": {
+      "type": "string",
+      "description": "Unique engine run reference. Assigned by the engine on submission. Used to trace every output back to its official run.",
+      "minLength": 1
+    },
+
+    "scenario_id": {
+      "type": "string",
+      "description": "The scenario this run corresponds to."
+    },
+
+    "deal_id": {
+      "type": "string",
+      "description": "Parent deal identifier."
+    },
+
+    "source": {
+      "type": "string",
+      "description": "Must always be 'model_runner'. Any result without this value must not be treated as official.",
+      "const": "model_runner"
+    },
+
+    "status": {
+      "type": "string",
+      "description": "Final run status.",
+      "enum": ["complete", "failed", "partial"]
+    },
+
+    "executed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the engine completed the run (UTC ISO 8601)."
+    },
+
+    "outputs": {
+      "description": "Official engine output metrics. All values are engine-computed. Fields are engine-defined and may vary by engine version. Treat all values as [calculated] — never re-derive them.",
+      "type": "object",
+      "properties": {
+
+        "equity_irr": {
+          "type": "number",
+          "description": "[calculated] Equity internal rate of return as decimal (e.g. 0.142 = 14.2%)."
+        },
+
+        "aaa_size_pct": {
+          "type": "number",
+          "description": "[calculated] AAA tranche size as fraction of total deal (e.g. 0.61)."
+        },
+
+        "wac": {
+          "type": "number",
+          "description": "[calculated] Weighted average cost of liabilities as decimal."
+        },
+
+        "oc_cushion_aaa": {
+          "type": "number",
+          "description": "[calculated] OC cushion on the AAA test as decimal."
+        },
+
+        "ic_cushion_aaa": {
+          "type": "number",
+          "description": "[calculated] IC cushion on the AAA test as decimal."
+        },
+
+        "equity_wal": {
+          "type": "number",
+          "description": "[calculated] Equity weighted average life in years."
+        },
+
+        "scenario_npv": {
+          "type": "number",
+          "description": "[calculated] Scenario net present value in deal currency."
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "engine_warnings": {
+      "type": "array",
+      "description": "Non-fatal warnings returned by the engine (e.g. assumption overrides, data gaps).",
+      "items": { "type": "string" }
+    },
+
+    "engine_errors": {
+      "type": "array",
+      "description": "Errors returned by the engine. If non-empty, outputs may be incomplete.",
+      "items": { "type": "string" }
+    },
+
+    "_mock": {
+      "type": "string",
+      "description": "Present only on mock stub outputs. Value: 'MOCK_ENGINE_OUTPUT'. If this field exists, the result is NOT official and must not be presented as such.",
+      "enum": ["MOCK_ENGINE_OUTPUT"]
+    }
+  },
+
+  "additionalProperties": false
+}

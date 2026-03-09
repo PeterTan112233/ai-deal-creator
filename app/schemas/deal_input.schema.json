@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deal_input.schema.json",
+  "title": "DealInput",
+  "description": "User-provided inputs for creating a new CLO deal. Contains only what the structurer supplies. System metadata (status, version, created_at) is excluded — the platform sets those.",
+  "type": "object",
+
+  "required": ["deal_id", "name", "issuer", "collateral", "liabilities"],
+
+  "properties": {
+
+    "deal_id": {
+      "type": "string",
+      "description": "Unique deal identifier. Set by the user or importing system.",
+      "minLength": 1
+    },
+
+    "name": {
+      "type": "string",
+      "description": "Human-readable deal name, e.g. 'Acme CLO I'.",
+      "minLength": 1
+    },
+
+    "issuer": {
+      "type": "string",
+      "description": "Issuer or sponsor entity name.",
+      "minLength": 1
+    },
+
+    "region": {
+      "type": "string",
+      "description": "Market region governing regulatory and structural conventions.",
+      "enum": ["US", "EU", "APAC"],
+      "default": "US"
+    },
+
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 deal currency.",
+      "default": "USD"
+    },
+
+    "manager": {
+      "type": "string",
+      "description": "CLO manager name.",
+      "nullable": true
+    },
+
+    "close_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Expected or actual close date (YYYY-MM-DD). Optional at intake.",
+      "nullable": true
+    },
+
+    "notes": {
+      "type": "string",
+      "description": "Free-text structurer notes.",
+      "nullable": true
+    },
+
+    "collateral": {
+      "description": "Collateral pool parameters. All metrics are as-of the pool tape date.",
+      "type": "object",
+      "required": ["pool_id", "asset_class", "portfolio_size"],
+      "properties": {
+        "pool_id": {
+          "type": "string",
+          "description": "Reference ID for the pool tape in portfolio-data-mcp."
+        },
+        "asset_class": {
+          "type": "string",
+          "description": "e.g. 'broadly_syndicated_loans', 'middle_market_loans'."
+        },
+        "portfolio_size": {
+          "type": "number",
+          "description": "Total par amount in deal currency.",
+          "exclusiveMinimum": 0
+        },
+        "was": {
+          "type": "number",
+          "description": "Weighted average spread as decimal (e.g. 0.042 = 4.2%).",
+          "minimum": 0
+        },
+        "warf": {
+          "type": "number",
+          "description": "Weighted average rating factor.",
+          "minimum": 0
+        },
+        "wal": {
+          "type": "number",
+          "description": "Weighted average life in years.",
+          "minimum": 0
+        },
+        "diversity_score": {
+          "type": "number",
+          "description": "Moody's diversity score. Must be >= 30 for pool validation.",
+          "minimum": 0
+        },
+        "ccc_bucket": {
+          "type": "number",
+          "description": "CCC/Caa assets as fraction of portfolio. Max 0.075.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "concentrations": {
+          "type": "object",
+          "description": "Concentration metrics, e.g. top_obligor_pct, top_industry_pct.",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+
+    "liabilities": {
+      "description": "Ordered tranche stack. At least one tranche required. Seniority must be unique.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["tranche_id", "name", "seniority"],
+        "properties": {
+          "tranche_id": { "type": "string" },
+          "name": {
+            "type": "string",
+            "description": "e.g. 'AAA', 'AA', 'Equity'."
+          },
+          "seniority": {
+            "type": "integer",
+            "description": "1 = most senior. Must be unique within the structure.",
+            "minimum": 1
+          },
+          "size_pct": {
+            "type": "number",
+            "description": "Tranche size as fraction of total deal (e.g. 0.61). Provide size_pct or size_abs.",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "size_abs": {
+            "type": "number",
+            "description": "Absolute size in deal currency. Provide size_pct or size_abs.",
+            "exclusiveMinimum": 0
+          },
+          "coupon": {
+            "type": "string",
+            "description": "Coupon expression as string only, e.g. 'SOFR+145'. Never a computed float.",
+            "nullable": true
+          },
+          "target_rating": {
+            "type": "string",
+            "description": "Target rating expression, e.g. 'Aaa', 'Aa2', 'Ba3'.",
+            "nullable": true
+          },
+          "payment_frequency": {
+            "type": "string",
+            "enum": ["quarterly", "semi-annual", "annual"],
+            "default": "quarterly"
+          }
+        }
+      }
+    },
+
+    "structural_tests": {
+      "description": "OC, IC, and concentration test thresholds. Optional at intake; defaults applied if omitted.",
+      "type": "object",
+      "properties": {
+        "oc_tests": {
+          "type": "object",
+          "description": "OC threshold per tranche name, e.g. {\"AAA\": 1.42}.",
+          "additionalProperties": { "type": "number" }
+        },
+        "ic_tests": {
+          "type": "object",
+          "description": "IC threshold per tranche name.",
+          "additionalProperties": { "type": "number" }
+        },
+        "ccc_limit": {
+          "type": "number",
+          "description": "CCC bucket maximum as fraction. Default 0.075.",
+          "default": 0.075,
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+
+    "market_assumptions": {
+      "description": "Stress and pricing assumptions for scenario runs. These are inputs — outputs come from the engine.",
+      "type": "object",
+      "properties": {
+        "default_rate": {
+          "type": "number",
+          "description": "Annual default rate assumption as decimal (e.g. 0.03 = 3%).",
+          "default": 0.03,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recovery_rate": {
+          "type": "number",
+          "description": "Blended recovery assumption as decimal (e.g. 0.65 = 65%).",
+          "default": 0.65,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "spread_shock_bps": {
+          "type": "number",
+          "description": "Spread shock in basis points.",
+          "default": 0,
+          "minimum": 0
+        }
+      }
+    }
+  },
+
+  "additionalProperties": false
+}
