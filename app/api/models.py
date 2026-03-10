@@ -229,6 +229,40 @@ class AnalyzeResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /optimize
+# ---------------------------------------------------------------------------
+
+class OptimizeRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    aaa_min: float = 0.55
+    aaa_max: float = 0.72
+    aaa_step: float = 0.005
+    mez_size_pct: float = 0.08
+    mez_coupon: str = "SOFR+200"
+    aaa_coupon: str = "SOFR+145"
+    oc_floor: float = 0.18
+    ic_floor: float = 0.10
+    scenario_parameters: Optional[Dict[str, Any]] = None
+    actor: str = "api"
+
+
+class OptimizeResponse(BaseModel):
+    deal_id: str
+    optimization_id: str
+    optimised_at: str
+    is_mock: bool
+    optimal: Optional[Dict[str, Any]]
+    feasibility_table: List[Dict[str, Any]]
+    frontier: List[Dict[str, Any]]
+    constraints: Dict[str, Any]
+    infeasible_reason: Optional[str]
+    candidates_tested: int
+    feasible_count: int
+    audit_events_count: int
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /publish-check
 # ---------------------------------------------------------------------------
 

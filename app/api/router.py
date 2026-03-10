@@ -10,6 +10,7 @@ Endpoints:
   POST /scenarios/batch
   POST /scenarios/sensitivity
   POST /analyze
+  POST /optimize
   POST /drafts/investor-summary
   POST /drafts/ic-memo
   POST /approvals/request
@@ -36,6 +37,8 @@ from app.api.models import (
     DraftResponse,
     GenerateDraftRequest,
     GenerateIcMemoRequest,
+    OptimizeRequest,
+    OptimizeResponse,
     PublishCheckRequest,
     PublishCheckResponse,
     RecordApprovalRequest,
@@ -54,6 +57,7 @@ from app.services import approval_service
 from app.workflows.create_deal_workflow import create_deal_workflow, deal_input_from_domain
 from app.workflows.batch_scenario_workflow import batch_scenario_workflow
 from app.workflows.deal_analytics_workflow import deal_analytics_workflow
+from app.workflows.tranche_optimizer_workflow import tranche_optimizer_workflow
 from app.workflows.generate_ic_memo_workflow import generate_ic_memo_workflow
 from app.workflows.generate_investor_summary_workflow import generate_investor_summary_workflow
 from app.workflows.publish_check_workflow import publish_check_workflow
@@ -216,6 +220,59 @@ def analyze_deal(request: AnalyzeRequest):
         summary_table=result["summary_table"],
         analytics_report=result["analytics_report"],
         scenarios_run=suite.get("scenarios_run", 0),
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /optimize
+# ---------------------------------------------------------------------------
+
+@router.post("/optimize", response_model=OptimizeResponse, tags=["analytics"])
+def optimize_structure(request: OptimizeRequest):
+    """
+    Find the optimal AAA tranche size for a given pool.
+
+    Sweeps AAA size over the specified range (default 55%–72% in 0.5% steps),
+    holding mezzanine fixed, and finds the structure that maximises equity IRR
+    subject to OC cushion >= oc_floor and IC cushion >= ic_floor.
+
+    Returns the optimal structure, the full feasibility table, and the
+    efficiency frontier (IRR vs AAA size for all feasible points).
+
+    All outputs are tagged [demo] (DEMO_ANALYTICAL_ENGINE).
+    """
+    result = tranche_optimizer_workflow(
+        deal_input=request.deal_input,
+        aaa_min=request.aaa_min,
+        aaa_max=request.aaa_max,
+        aaa_step=request.aaa_step,
+        mez_size_pct=request.mez_size_pct,
+        mez_coupon=request.mez_coupon,
+        aaa_coupon=request.aaa_coupon,
+        oc_floor=request.oc_floor,
+        ic_floor=request.ic_floor,
+        scenario_parameters=request.scenario_parameters,
+        actor=request.actor,
+    )
+
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    feasible_count = sum(1 for r in result["feasibility_table"] if r.get("feasible"))
+    return OptimizeResponse(
+        deal_id=result["deal_id"],
+        optimization_id=result["optimization_id"],
+        optimised_at=result["optimised_at"],
+        is_mock=result["is_mock"],
+        optimal=result["optimal"],
+        feasibility_table=result["feasibility_table"],
+        frontier=result["frontier"],
+        constraints=result["constraints"],
+        infeasible_reason=result.get("infeasible_reason"),
+        candidates_tested=len(result["feasibility_table"]),
+        feasible_count=feasible_count,
         audit_events_count=len(result.get("audit_events", [])),
         error=result.get("error"),
     )

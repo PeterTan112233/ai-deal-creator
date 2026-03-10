@@ -725,3 +725,66 @@ class TestAnalyze:
             "run_sensitivity": False,
         })
         assert resp.json()["scenarios_run"] == 1
+
+
+# ---------------------------------------------------------------------------
+# POST /optimize
+# ---------------------------------------------------------------------------
+
+class TestOptimize:
+
+    def _opt_payload(self, **overrides):
+        payload = {
+            "deal_input": _batch_deal_input(),
+            "aaa_min": 0.58,
+            "aaa_max": 0.68,
+            "aaa_step": 0.02,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_returns_200(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert resp.status_code == 200
+
+    def test_optimization_id_present(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert resp.json()["optimization_id"].startswith("opt-")
+
+    def test_candidates_tested_count(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        # aaa_min=0.58, aaa_max=0.68, step=0.02 → 6 candidates
+        assert resp.json()["candidates_tested"] == 6
+
+    def test_optimal_is_present(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert resp.json()["optimal"] is not None
+
+    def test_optimal_has_equity_irr(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert "equity_irr" in resp.json()["optimal"]
+        assert isinstance(resp.json()["optimal"]["equity_irr"], float)
+
+    def test_feasibility_table_returned(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert len(resp.json()["feasibility_table"]) == 6
+
+    def test_frontier_is_list(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert isinstance(resp.json()["frontier"], list)
+
+    def test_is_mock_true(self):
+        resp = client.post("/optimize", json=self._opt_payload())
+        assert resp.json()["is_mock"] is True
+
+    def test_impossible_oc_floor_returns_none_optimal(self):
+        resp = client.post("/optimize", json=self._opt_payload(oc_floor=5.0))
+        data = resp.json()
+        assert data["optimal"] is None
+        assert data["infeasible_reason"] is not None
+
+    def test_invalid_deal_returns_422(self):
+        bad = dict(_batch_deal_input())
+        bad["deal_id"] = ""
+        resp = client.post("/optimize", json={"deal_input": bad, "aaa_min": 0.60, "aaa_max": 0.65, "aaa_step": 0.025})
+        assert resp.status_code == 422
