@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from mcp.cashflow_engine import mock_engine
+from mcp.cashflow_engine import analytical_engine as _engine
 
 _MOCK_MODE = True  # set to False when real MCP integration is active
 
@@ -35,8 +35,8 @@ def submit_scenario(deal_id: str, scenario_request: Dict[str, Any]) -> str:
 
     Phase 2: replace body with cashflow-engine-mcp.run_scenario() call.
     """
-    submission = mock_engine.run_scenario(
-        deal_payload={"deal_id": deal_id},
+    submission = _engine.run_scenario(
+        deal_payload=scenario_request.get("deal_payload", {"deal_id": deal_id}),
         scenario_payload=scenario_request.get("parameters", {}),
     )
     return submission["run_id"]
@@ -49,7 +49,7 @@ def poll_until_done(run_id: str) -> bool:
     Phase 2: replace with real polling loop against cashflow-engine-mcp.get_run_status().
     Mock returns complete immediately.
     """
-    status = mock_engine.get_run_status(run_id)
+    status = _engine.get_run_status(run_id)
     return status.get("status") == "complete"
 
 
@@ -60,7 +60,7 @@ def get_result(run_id: str, scenario_id: str, deal_id: str) -> Dict[str, Any]:
 
     Phase 2: replace mock_engine.get_run_outputs() with cashflow-engine-mcp.get_run_outputs().
     """
-    raw = mock_engine.get_run_outputs(run_id)
+    raw = _engine.get_run_outputs(run_id)
 
     is_mock = "_mock" in raw
 
@@ -79,8 +79,9 @@ def get_result(run_id: str, scenario_id: str, deal_id: str) -> Dict[str, Any]:
     if is_mock:
         result["_mock"] = raw["_mock"]
         result["engine_warnings"].append(
-            "MOCK ENGINE: outputs are synthetic placeholders. "
-            "Replace model_engine_service with real cashflow-engine-mcp in Phase 2."
+            "DEMO ANALYTICAL ENGINE: outputs are computed by simplified formulas "
+            "for development use only. Tag as [demo] — not [calculated]. "
+            "Replace with real cashflow-engine-mcp in Phase 2."
         )
 
     return result

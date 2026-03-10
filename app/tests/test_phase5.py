@@ -147,7 +147,7 @@ class TestModelEngineService:
                 "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}
             },
         )
-        assert run_id.startswith("mock-run-")
+        assert run_id.startswith("run-")
 
     def test_poll_returns_true(self):
         run_id = model_engine_service.submit_scenario("deal-001", {"parameters": {}})
@@ -256,4 +256,4 @@ class TestRunScenarioWorkflow:
     def test_scenario_result_has_run_id(self):
         deal = _valid_deal()
         result = run_scenario_workflow(deal)
-        assert result["scenario_result"]["run_id"].startswith("mock-run-")
+        assert result["scenario_result"]["run_id"].startswith("run-")

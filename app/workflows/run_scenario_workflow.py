@@ -106,6 +106,17 @@ def run_scenario_workflow(
     # Step 3: Submit to engine
     # Phase 2: model_engine_service.submit_scenario() → cashflow-engine-mcp.run_scenario()
     # ------------------------------------------------------------------
+    # Attach deal_payload so the analytical engine has pool metrics + tranches
+    scenario_request["deal_payload"] = {
+        "deal_id":        deal_id,
+        "portfolio_size": deal_input.get("collateral", {}).get("portfolio_size"),
+        "was":            deal_input.get("collateral", {}).get("was"),
+        "wal":            deal_input.get("collateral", {}).get("wal"),
+        "diversity_score":deal_input.get("collateral", {}).get("diversity_score"),
+        "ccc_bucket":     deal_input.get("collateral", {}).get("ccc_bucket"),
+        "tranches":       deal_input.get("liabilities", []),
+    }
+
     run_id = model_engine_service.submit_scenario(
         deal_id=deal_id,
         scenario_request=scenario_request,
