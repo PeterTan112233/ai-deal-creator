@@ -878,3 +878,154 @@ class TestBenchmarkCompare:
         assert "above_median_count" in data
         assert "below_median_count" in data
         assert data["above_median_count"] + data["below_median_count"] <= len(data["metric_scores"])
+
+
+# ---------------------------------------------------------------------------
+# POST /pipeline
+# ---------------------------------------------------------------------------
+
+class TestPipeline:
+
+    def test_returns_200(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": True,
+            "run_benchmark": True,
+            "run_draft": True,
+            "optimizer_kwargs": {"aaa_min": 0.60, "aaa_max": 0.63, "aaa_step": 0.015},
+        })
+        assert resp.status_code == 200
+
+    def test_pipeline_id_returned(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert resp.json()["pipeline_id"].startswith("pipeline-")
+
+    def test_analytics_stage_present(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert resp.json()["stages"]["analytics"] is not None
+
+    def test_optimizer_stage_present_when_enabled(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": True, "run_benchmark": False, "run_draft": False,
+            "optimizer_kwargs": {"aaa_min": 0.60, "aaa_max": 0.62, "aaa_step": 0.01},
+        })
+        assert resp.json()["stages"]["optimizer"] is not None
+
+    def test_optimizer_stage_null_when_disabled(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert resp.json()["stages"]["optimizer"] is None
+
+    def test_benchmark_stage_present_when_enabled(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": True, "run_draft": False,
+        })
+        assert resp.json()["stages"]["benchmark"] is not None
+
+    def test_pipeline_summary_non_empty(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert len(resp.json()["pipeline_summary"]) > 50
+
+    def test_is_mock_true(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_audit_events_count_positive(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": _batch_deal_input(),
+            "run_optimizer": False, "run_benchmark": False, "run_draft": False,
+        })
+        assert resp.json()["audit_events_count"] >= 3
+
+    def test_invalid_deal_returns_error_in_body(self):
+        resp = client.post("/pipeline", json={
+            "deal_input": {"deal_id": "", "name": "x", "issuer": "y",
+                           "collateral": {"portfolio_size": 100_000_000, "diversity_score": 45, "ccc_bucket": 0.05},
+                           "liabilities": [{"tranche_id": "t1", "name": "AAA", "seniority": 1, "size_pct": 0.61}]},
+        })
+        # Pipeline handles invalid deals gracefully: 200 with error field populated
+        assert resp.status_code == 200
+        assert resp.json().get("error") is not None
+
+
+# ---------------------------------------------------------------------------
+# POST /compare
+# ---------------------------------------------------------------------------
+
+class TestCompare:
+
+    def _v1_deal(self):
+        return _batch_deal_input()
+
+    def _v2_deal(self):
+        d = _batch_deal_input()
+        d["deal_id"] = "batch-deal-002"
+        d["collateral"]["portfolio_size"] = 600_000_000
+        return d
+
+    def test_returns_200_with_two_deals(self):
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+            "v2_deal": self._v2_deal(),
+        })
+        assert resp.status_code == 200
+
+    def test_deal_comparison_present(self):
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+            "v2_deal": self._v2_deal(),
+        })
+        assert resp.json()["deal_comparison"] is not None
+
+    def test_summary_non_empty(self):
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+            "v2_deal": self._v2_deal(),
+        })
+        assert resp.json().get("summary") is not None
+        assert len(resp.json()["summary"]) > 10
+
+    def test_audit_events_count_positive(self):
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+            "v2_deal": self._v2_deal(),
+        })
+        assert resp.json()["audit_events_count"] >= 1
+
+    def test_missing_v2_returns_422(self):
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+        })
+        assert resp.status_code == 422
+
+    def test_compare_with_results(self):
+        # Run a scenario on v1 first, use result for comparison
+        scen_resp = client.post("/scenarios", json={
+            "deal_input": self._v1_deal(),
+            "scenario_name": "Base",
+            "scenario_type": "base",
+        })
+        v1_result = scen_resp.json().get("scenario_result") or {}
+
+        resp = client.post("/compare", json={
+            "v1_deal": self._v1_deal(),
+            "v2_deal": self._v2_deal(),
+            "v1_result": v1_result,
+        })
+        assert resp.status_code == 200

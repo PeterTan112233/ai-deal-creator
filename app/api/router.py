@@ -12,6 +12,8 @@ Endpoints:
   POST /analyze
   POST /optimize
   POST /benchmarks/compare
+  POST /pipeline
+  POST /compare
   POST /drafts/investor-summary
   POST /drafts/ic-memo
   POST /approvals/request
@@ -35,6 +37,8 @@ from app.api.models import (
     BatchScenarioResponse,
     BenchmarkCompareRequest,
     BenchmarkCompareResponse,
+    CompareRequest,
+    CompareResponse,
     CreateDealRequest,
     CreateDealResponse,
     DraftResponse,
@@ -42,6 +46,8 @@ from app.api.models import (
     GenerateIcMemoRequest,
     OptimizeRequest,
     OptimizeResponse,
+    PipelineRequest,
+    PipelineResponse,
     PublishCheckRequest,
     PublishCheckResponse,
     RecordApprovalRequest,
@@ -60,7 +66,9 @@ from app.services import approval_service
 from app.workflows.create_deal_workflow import create_deal_workflow, deal_input_from_domain
 from app.workflows.batch_scenario_workflow import batch_scenario_workflow
 from app.workflows.benchmark_comparison_workflow import benchmark_comparison_workflow
+from app.workflows.compare_versions_workflow import compare_versions_workflow
 from app.workflows.deal_analytics_workflow import deal_analytics_workflow
+from app.workflows.full_pipeline_workflow import full_pipeline_workflow
 from app.workflows.tranche_optimizer_workflow import tranche_optimizer_workflow
 from app.workflows.generate_ic_memo_workflow import generate_ic_memo_workflow
 from app.workflows.generate_investor_summary_workflow import generate_investor_summary_workflow
@@ -322,6 +330,93 @@ def compare_to_benchmarks(request: BenchmarkCompareRequest):
         metric_scores=result["metric_scores"],
         comparison_report=result["comparison_report"],
         is_mock=result["is_mock"],
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /pipeline
+# ---------------------------------------------------------------------------
+
+@router.post("/pipeline", response_model=PipelineResponse, tags=["analytics"])
+def run_pipeline(request: PipelineRequest):
+    """
+    Run the full end-to-end deal analytics pipeline in a single call.
+
+    Chains: analytics (4-scenario suite) → tranche optimizer →
+    benchmark comparison → investor summary draft.
+
+    Each stage is optional and can be toggled via run_* flags.
+    If the analytics stage fails (e.g. invalid deal), subsequent stages
+    are skipped.
+
+    All outputs are tagged [demo].
+    """
+    result = full_pipeline_workflow(
+        deal_input=request.deal_input,
+        run_sensitivity=request.run_sensitivity,
+        run_optimizer=request.run_optimizer,
+        run_benchmark=request.run_benchmark,
+        run_draft=request.run_draft,
+        vintage=request.vintage,
+        region=request.region,
+        optimizer_kwargs=request.optimizer_kwargs,
+        actor=request.actor,
+    )
+
+    if result.get("error") and not result["stages"]["analytics"]:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return PipelineResponse(
+        pipeline_id=result["pipeline_id"],
+        deal_id=result["deal_id"],
+        run_at=result["run_at"],
+        is_mock=result["is_mock"],
+        stages=result["stages"],
+        pipeline_summary=result["pipeline_summary"],
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /compare
+# ---------------------------------------------------------------------------
+
+@router.post("/compare", response_model=CompareResponse, tags=["analytics"])
+def compare_versions(request: CompareRequest):
+    """
+    Compare two deal versions and/or two scenario results.
+
+    Modes:
+      - Deal comparison:    provide v1_deal + v2_deal
+      - Scenario comparison: provide v1_deal + v1_result + v2_result
+      - Both:               provide all four
+
+    Returns changed inputs, changed outputs, and a grounded text summary.
+    """
+    if request.v2_deal is None and request.v2_result is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide at least v2_deal (deal comparison) or v2_result (scenario comparison).",
+        )
+
+    result = compare_versions_workflow(
+        v1_deal=request.v1_deal,
+        v2_deal=request.v2_deal,
+        v1_result=request.v1_result,
+        v2_result=request.v2_result,
+        actor=request.actor,
+    )
+
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return CompareResponse(
+        deal_comparison=result.get("deal_comparison"),
+        scenario_comparison=result.get("scenario_comparison"),
+        summary=result.get("summary"),
         audit_events_count=len(result.get("audit_events", [])),
         error=result.get("error"),
     )

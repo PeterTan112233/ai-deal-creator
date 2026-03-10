@@ -293,6 +293,53 @@ class BenchmarkCompareResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /pipeline
+# ---------------------------------------------------------------------------
+
+class PipelineRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    run_sensitivity: bool = False
+    run_optimizer: bool = True
+    run_benchmark: bool = True
+    run_draft: bool = True
+    vintage: Optional[int] = None
+    region: Optional[str] = None
+    optimizer_kwargs: Optional[Dict[str, Any]] = None
+    actor: str = "api"
+
+
+class PipelineResponse(BaseModel):
+    pipeline_id: str
+    deal_id: str
+    run_at: str
+    is_mock: bool
+    stages: Dict[str, Any]
+    pipeline_summary: str
+    audit_events_count: int
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# POST /compare
+# ---------------------------------------------------------------------------
+
+class CompareRequest(BaseModel):
+    v1_deal: Dict[str, Any]
+    v2_deal: Optional[Dict[str, Any]] = None
+    v1_result: Optional[Dict[str, Any]] = None
+    v2_result: Optional[Dict[str, Any]] = None
+    actor: str = "api"
+
+
+class CompareResponse(BaseModel):
+    deal_comparison: Optional[Dict[str, Any]]
+    scenario_comparison: Optional[Dict[str, Any]]
+    summary: Optional[str]
+    audit_events_count: int
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /publish-check
 # ---------------------------------------------------------------------------
 
