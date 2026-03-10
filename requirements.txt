@@ -7,10 +7,11 @@ pydantic>=2.0
 # Testing
 pytest>=7.0
 
-# ---- Optional: API server (Phase 1 stub, Phase 2+ full) ----
+# ---- API server ----
 # Install to run `uvicorn app.api.main:app --reload`
-# fastapi>=0.111
-# uvicorn>=0.29
+fastapi>=0.111
+uvicorn>=0.29
+httpx>=0.27
 
 # ---- Phase 2+ dependencies (uncomment as integrations are built) ----
 # MCP SDK
