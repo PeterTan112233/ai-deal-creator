@@ -645,3 +645,83 @@ class TestSensitivityAnalysis:
             "values": [],
         })
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /analyze
+# ---------------------------------------------------------------------------
+
+class TestAnalyze:
+
+    def test_returns_200(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        assert resp.status_code == 200
+
+    def test_analysis_id_present(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        assert resp.json()["analysis_id"].startswith("analytics-")
+
+    def test_four_scenarios_run(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        assert resp.json()["scenarios_run"] == 4
+
+    def test_key_metrics_present(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        km = resp.json()["key_metrics"]
+        assert "base_equity_irr" in km
+        assert isinstance(km["base_equity_irr"], float)
+
+    def test_analytics_report_is_string(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        report = resp.json()["analytics_report"]
+        assert isinstance(report, str)
+        assert "DEMO" in report
+
+    def test_summary_table_has_rows(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        assert len(resp.json()["summary_table"]) > 0
+
+    def test_is_mock_true(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "run_sensitivity": False,
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_invalid_deal_returns_422(self):
+        bad = dict(_batch_deal_input())
+        bad["deal_id"] = ""
+        resp = client.post("/analyze", json={
+            "deal_input": bad,
+            "run_sensitivity": False,
+        })
+        assert resp.status_code == 422
+
+    def test_custom_scenarios_used(self):
+        resp = client.post("/analyze", json={
+            "deal_input": _batch_deal_input(),
+            "custom_scenarios": [
+                {"name": "Custom Base", "type": "base",
+                 "parameters": {"default_rate": 0.02, "recovery_rate": 0.70, "spread_shock_bps": 0}},
+            ],
+            "run_sensitivity": False,
+        })
+        assert resp.json()["scenarios_run"] == 1

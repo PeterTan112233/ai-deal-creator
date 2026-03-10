@@ -204,6 +204,31 @@ class SensitivityResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /analyze
+# ---------------------------------------------------------------------------
+
+class AnalyzeRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    custom_scenarios: Optional[List[Dict[str, Any]]] = None
+    run_sensitivity: bool = True
+    actor: str = "api"
+
+
+class AnalyzeResponse(BaseModel):
+    deal_id: str
+    analysis_id: str
+    analysed_at: str
+    is_mock: bool
+    key_metrics: Dict[str, Any]
+    breakeven: Dict[str, Any]
+    summary_table: List[Dict[str, Any]]
+    analytics_report: str
+    scenarios_run: int
+    audit_events_count: int
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /publish-check
 # ---------------------------------------------------------------------------
 

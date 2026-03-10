@@ -9,6 +9,7 @@ Endpoints:
   POST /scenarios
   POST /scenarios/batch
   POST /scenarios/sensitivity
+  POST /analyze
   POST /drafts/investor-summary
   POST /drafts/ic-memo
   POST /approvals/request
@@ -25,6 +26,8 @@ Phase 2+: set _MOCK_MODE = False in model_engine_service and
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import (
+    AnalyzeRequest,
+    AnalyzeResponse,
     ApplyApprovalRequest,
     BatchScenarioRequest,
     BatchScenarioResponse,
@@ -50,6 +53,7 @@ from app.domain.tranche import Tranche
 from app.services import approval_service
 from app.workflows.create_deal_workflow import create_deal_workflow, deal_input_from_domain
 from app.workflows.batch_scenario_workflow import batch_scenario_workflow
+from app.workflows.deal_analytics_workflow import deal_analytics_workflow
 from app.workflows.generate_ic_memo_workflow import generate_ic_memo_workflow
 from app.workflows.generate_investor_summary_workflow import generate_investor_summary_workflow
 from app.workflows.publish_check_workflow import publish_check_workflow
@@ -168,6 +172,50 @@ def run_scenario(request: RunScenarioRequest):
         scenario_request=result.get("scenario_request"),
         scenario_result=result.get("scenario_result"),
         summary=result.get("summary"),
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /analyze
+# ---------------------------------------------------------------------------
+
+@router.post("/analyze", response_model=AnalyzeResponse, tags=["analytics"])
+def analyze_deal(request: AnalyzeRequest):
+    """
+    Run a complete analytics package for a deal in one call.
+
+    Executes the standard 4-scenario suite (Base / Mild Stress / Stress /
+    Deep Stress) plus CDR and RR sensitivity sweeps, and returns:
+    - Per-scenario outputs and comparison table
+    - Base-case headline metrics
+    - Breakeven CDR and RR thresholds
+    - A formatted [demo]-tagged analytics report
+
+    All outputs are tagged [demo] (DEMO_ANALYTICAL_ENGINE).
+    """
+    result = deal_analytics_workflow(
+        deal_input=request.deal_input,
+        custom_scenarios=request.custom_scenarios,
+        run_sensitivity=request.run_sensitivity,
+        actor=request.actor,
+    )
+
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    suite = result.get("scenario_suite", {})
+    return AnalyzeResponse(
+        deal_id=result["deal_id"],
+        analysis_id=result["analysis_id"],
+        analysed_at=result["analysed_at"],
+        is_mock=result["is_mock"],
+        key_metrics=result["key_metrics"],
+        breakeven=result["breakeven"],
+        summary_table=result["summary_table"],
+        analytics_report=result["analytics_report"],
+        scenarios_run=suite.get("scenarios_run", 0),
         audit_events_count=len(result.get("audit_events", [])),
         error=result.get("error"),
     )
