@@ -466,3 +466,182 @@ class TestPublishCheck:
         })
         assert "checks_run" in resp.json()
         assert len(resp.json()["checks_run"]) == 7
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/batch
+# ---------------------------------------------------------------------------
+
+def _batch_deal_input():
+    """Minimal valid deal_input dict for batch/sensitivity tests."""
+    return {
+        "deal_id": "batch-deal-001",
+        "name": "Batch Test CLO",
+        "issuer": "Batch Issuer LLC",
+        "collateral": {
+            "pool_id": "pool-batch-001",
+            "asset_class": "broadly_syndicated_loans",
+            "portfolio_size": 500_000_000,
+            "was": 0.042,
+            "wal": 5.2,
+            "diversity_score": 62,
+            "ccc_bucket": 0.055,
+        },
+        "liabilities": [
+            {"tranche_id": "t-aaa", "name": "AAA",    "seniority": 1, "size_pct": 0.61, "coupon": "SOFR+145"},
+            {"tranche_id": "t-aa",  "name": "AA",     "seniority": 2, "size_pct": 0.08, "coupon": "SOFR+200"},
+            {"tranche_id": "t-eq",  "name": "Equity", "seniority": 3, "size_pct": 0.09},
+        ],
+        "market_assumptions": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0},
+    }
+
+
+class TestBatchScenarios:
+
+    def test_returns_200(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [
+                {"name": "Base",   "type": "base",   "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}},
+                {"name": "Stress", "type": "stress",  "parameters": {"default_rate": 0.07, "recovery_rate": 0.40, "spread_shock_bps": 100}},
+            ],
+        })
+        assert resp.status_code == 200
+
+    def test_scenarios_run_count(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [
+                {"name": "A", "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}},
+                {"name": "B", "parameters": {"default_rate": 0.06, "recovery_rate": 0.45, "spread_shock_bps": 50}},
+            ],
+        })
+        assert resp.json()["scenarios_run"] == 2
+
+    def test_comparison_table_present(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [
+                {"name": "Base",   "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}},
+                {"name": "Stress", "parameters": {"default_rate": 0.07, "recovery_rate": 0.40, "spread_shock_bps": 75}},
+            ],
+        })
+        data = resp.json()
+        assert "comparison_table" in data
+        assert len(data["comparison_table"]) > 0
+
+    def test_equity_irr_best_worst_annotated(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [
+                {"name": "Base",   "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}},
+                {"name": "Stress", "parameters": {"default_rate": 0.07, "recovery_rate": 0.40, "spread_shock_bps": 75}},
+            ],
+        })
+        table = resp.json()["comparison_table"]
+        irr_row = next(r for r in table if r["metric"] == "equity_irr")
+        assert irr_row["best"] == "Base"
+        assert irr_row["worst"] == "Stress"
+
+    def test_is_mock_in_response(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [{"name": "Base", "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}}],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_invalid_deal_returns_422(self):
+        bad_deal = dict(_batch_deal_input())
+        bad_deal["deal_id"] = ""
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": bad_deal,
+            "scenarios": [{"name": "Base", "parameters": {"default_rate": 0.03, "recovery_rate": 0.65, "spread_shock_bps": 0}}],
+        })
+        assert resp.status_code == 422
+
+    def test_missing_scenarios_returns_422(self):
+        resp = client.post("/scenarios/batch", json={
+            "deal_input": _batch_deal_input(),
+            "scenarios": [],
+        })
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/sensitivity
+# ---------------------------------------------------------------------------
+
+class TestSensitivityAnalysis:
+
+    def test_returns_200(self):
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": [0.02, 0.04, 0.06, 0.08],
+        })
+        assert resp.status_code == 200
+
+    def test_series_length_matches_values(self):
+        values = [0.02, 0.04, 0.06, 0.08]
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": values,
+        })
+        assert len(resp.json()["series"]) == len(values)
+
+    def test_parameter_name_echoed(self):
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "recovery_rate",
+            "values": [0.30, 0.50, 0.70],
+        })
+        assert resp.json()["parameter"] == "recovery_rate"
+
+    def test_breakeven_keys_present(self):
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": [0.01, 0.05, 0.10, 0.15],
+        })
+        be = resp.json()["breakeven"]
+        assert "equity_irr_zero" in be
+        assert "scenario_npv_zero" in be
+
+    def test_irr_breakeven_found_in_wide_sweep(self):
+        """Wide sweep should detect IRR=0 crossover."""
+        values = [round(i * 0.01, 2) for i in range(1, 16)]
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": values,
+        })
+        be = resp.json()["breakeven"]["equity_irr_zero"]
+        assert be is not None
+        assert 0.01 <= be <= 0.15
+
+    def test_is_mock_in_response(self):
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": [0.03, 0.06],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_invalid_deal_returns_422(self):
+        bad_deal = dict(_batch_deal_input())
+        bad_deal["deal_id"] = ""
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": bad_deal,
+            "parameter": "default_rate",
+            "values": [0.03],
+        })
+        assert resp.status_code == 422
+
+    def test_empty_values_returns_422(self):
+        resp = client.post("/scenarios/sensitivity", json={
+            "deal_input": _batch_deal_input(),
+            "parameter": "default_rate",
+            "values": [],
+        })
+        assert resp.status_code == 422

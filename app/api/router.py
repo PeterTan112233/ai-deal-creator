@@ -7,6 +7,8 @@ Endpoints:
   GET  /health
   POST /deals
   POST /scenarios
+  POST /scenarios/batch
+  POST /scenarios/sensitivity
   POST /drafts/investor-summary
   POST /drafts/ic-memo
   POST /approvals/request
@@ -24,6 +26,8 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.models import (
     ApplyApprovalRequest,
+    BatchScenarioRequest,
+    BatchScenarioResponse,
     CreateDealRequest,
     CreateDealResponse,
     DraftResponse,
@@ -36,6 +40,8 @@ from app.api.models import (
     RequestApprovalRequest,
     RunScenarioRequest,
     RunScenarioResponse,
+    SensitivityRequest,
+    SensitivityResponse,
 )
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
@@ -43,10 +49,12 @@ from app.domain.structure import Structure
 from app.domain.tranche import Tranche
 from app.services import approval_service
 from app.workflows.create_deal_workflow import create_deal_workflow, deal_input_from_domain
+from app.workflows.batch_scenario_workflow import batch_scenario_workflow
 from app.workflows.generate_ic_memo_workflow import generate_ic_memo_workflow
 from app.workflows.generate_investor_summary_workflow import generate_investor_summary_workflow
 from app.workflows.publish_check_workflow import publish_check_workflow
 from app.workflows.run_scenario_workflow import run_scenario_workflow
+from app.workflows.sensitivity_analysis_workflow import sensitivity_analysis_workflow
 
 router = APIRouter()
 
@@ -280,6 +288,74 @@ def apply_approval_endpoint(request: ApplyApprovalRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return approved_draft
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/batch
+# ---------------------------------------------------------------------------
+
+@router.post("/scenarios/batch", response_model=BatchScenarioResponse, tags=["scenarios"])
+def run_batch_scenarios(request: BatchScenarioRequest):
+    """
+    Run multiple named scenarios against the same deal in a single call.
+
+    Returns per-scenario results plus a metric-by-metric comparison table
+    annotated with best/worst scenario for each metric.
+    """
+    scenarios = [s.model_dump() for s in request.scenarios]
+    result = batch_scenario_workflow(
+        deal_input=request.deal_input,
+        scenarios=scenarios,
+        actor=request.actor,
+    )
+
+    if result.get("error") and not result.get("results"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return BatchScenarioResponse(
+        deal_id=result["deal_id"],
+        scenarios_run=result["scenarios_run"],
+        results=result["results"],
+        comparison_table=result["comparison_table"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/sensitivity
+# ---------------------------------------------------------------------------
+
+@router.post("/scenarios/sensitivity", response_model=SensitivityResponse, tags=["scenarios"])
+def run_sensitivity_analysis(request: SensitivityRequest):
+    """
+    Sweep a single parameter over a list of values and return the output series.
+
+    Also returns interpolated breakeven points (e.g. the default_rate at which
+    equity IRR crosses zero).
+    """
+    result = sensitivity_analysis_workflow(
+        deal_input=request.deal_input,
+        parameter=request.parameter,
+        values=request.values,
+        base_parameters=request.base_parameters,
+        actor=request.actor,
+    )
+
+    if result.get("error") and not result.get("series"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return SensitivityResponse(
+        deal_id=result["deal_id"],
+        parameter=result["parameter"],
+        values_tested=result["values_tested"],
+        series=result["series"],
+        breakeven=result["breakeven"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
 
 
 # ---------------------------------------------------------------------------

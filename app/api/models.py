@@ -155,6 +155,55 @@ class ApplyApprovalRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /scenarios/batch
+# ---------------------------------------------------------------------------
+
+class ScenarioDefinition(BaseModel):
+    name: str
+    type: str = "base"
+    parameters: Dict[str, Any] = {}
+
+
+class BatchScenarioRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    scenarios: List[ScenarioDefinition] = Field(min_length=1)
+    actor: str = "api"
+
+
+class BatchScenarioResponse(BaseModel):
+    deal_id: str
+    scenarios_run: int
+    results: List[Dict[str, Any]]
+    comparison_table: List[Dict[str, Any]]
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/sensitivity
+# ---------------------------------------------------------------------------
+
+class SensitivityRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    parameter: str
+    values: List[float] = Field(min_length=1)
+    base_parameters: Optional[Dict[str, Any]] = None
+    actor: str = "api"
+
+
+class SensitivityResponse(BaseModel):
+    deal_id: str
+    parameter: str
+    values_tested: List[float]
+    series: List[Dict[str, Any]]
+    breakeven: Dict[str, Any]
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /publish-check
 # ---------------------------------------------------------------------------
 
