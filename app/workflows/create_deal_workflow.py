@@ -6,8 +6,7 @@ from app.domain.structure import Structure
 from app.schemas.deal_schema import DealSchema
 from app.schemas.collateral_schema import CollateralSchema
 from app.schemas.structure_schema import StructureSchema
-from app.services import audit_logger
-from mcp.portfolio_data import mock_portfolio
+from app.services import audit_logger, portfolio_data_service
 
 
 def deal_input_from_domain(
@@ -103,8 +102,8 @@ def create_deal_workflow(
     CollateralSchema.model_validate(collateral.__dict__)
     StructureSchema.model_validate(structure, from_attributes=True)
 
-    # --- Pool validation via mock MCP ---
-    pool_validation = mock_portfolio.validate_pool({
+    # --- Pool validation via portfolio data service ---
+    pool_validation = portfolio_data_service.validate_pool({
         "portfolio_size": collateral.portfolio_size,
         "diversity_score": collateral.diversity_score,
         "ccc_bucket": collateral.ccc_bucket,
