@@ -60,12 +60,16 @@ from app.api.models import (
     RecordApprovalRequest,
     RecordRejectionRequest,
     RequestApprovalRequest,
+    RunFromTemplateRequest,
+    RunFromTemplateResponse,
     RunScenarioRequest,
     RunScenarioResponse,
     SensitivityRequest,
     SensitivityResponse,
+    ScenarioTemplateResponse,
+    TemplateListResponse,
 )
-from app.services import deal_registry_service
+from app.services import deal_registry_service, scenario_template_service
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
 from app.domain.structure import Structure
@@ -705,3 +709,74 @@ def delete_deal(deal_id: str):
     """
     deleted = deal_registry_service.unregister(deal_id)
     return DeleteDealResponse(deal_id=deal_id, deleted=deleted)
+
+
+# ---------------------------------------------------------------------------
+# GET /scenarios/templates
+# ---------------------------------------------------------------------------
+
+@router.get("/scenarios/templates", response_model=TemplateListResponse, tags=["scenarios"])
+def list_scenario_templates(scenario_type: str = None, tag: str = None):
+    """
+    List all named scenario templates.
+
+    Optional query parameters:
+      - scenario_type: filter by "base", "stress", or "regulatory"
+      - tag:           filter by tag string (e.g. "historical", "gfc")
+
+    Templates are tagged [demo] — parameters are illustrative, not official
+    rating-agency or regulatory calibrations.
+    """
+    templates = scenario_template_service.list_templates(
+        scenario_type=scenario_type, tag=tag
+    )
+    return TemplateListResponse(
+        total=len(templates),
+        templates=[ScenarioTemplateResponse(**t) for t in templates],
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/from-template
+# ---------------------------------------------------------------------------
+
+@router.post("/scenarios/from-template", response_model=RunFromTemplateResponse,
+             tags=["scenarios"])
+def run_from_template(request: RunFromTemplateRequest):
+    """
+    Run a named scenario template against a deal.
+
+    Looks up the named template (e.g. "gfc-2008", "covid-2020", "base"),
+    applies any parameter_overrides, then submits to the scenario engine.
+
+    Returns the scenario result plus the parameters that were used.
+    """
+    try:
+        params = scenario_template_service.apply_template(
+            request.template_id, overrides=request.parameter_overrides
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    tmpl = scenario_template_service.get_template(request.template_id)
+
+    result = run_scenario_workflow(
+        deal_input=request.deal_input,
+        scenario_name=tmpl["name"],
+        scenario_type=tmpl["scenario_type"],
+        parameter_overrides=params,
+        actor=request.actor,
+    )
+
+    return RunFromTemplateResponse(
+        template_id=request.template_id,
+        template_name=tmpl["name"],
+        scenario_type=tmpl["scenario_type"],
+        parameters_used=params,
+        is_mock=result.get("is_mock", True),
+        scenario_request=result.get("scenario_request"),
+        scenario_result=result.get("scenario_result"),
+        summary=result.get("summary"),
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )

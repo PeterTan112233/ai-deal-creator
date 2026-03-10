@@ -394,3 +394,41 @@ class DealListResponse(BaseModel):
 class DeleteDealResponse(BaseModel):
     deal_id: str
     deleted: bool
+
+
+# ---------------------------------------------------------------------------
+# GET /scenarios/templates  /  POST /scenarios/from-template
+# ---------------------------------------------------------------------------
+
+class ScenarioTemplateResponse(BaseModel):
+    template_id: str
+    name: str
+    description: str
+    scenario_type: str
+    tags: List[str]
+    parameters: Dict[str, Any]
+
+
+class TemplateListResponse(BaseModel):
+    total: int
+    templates: List[ScenarioTemplateResponse]
+
+
+class RunFromTemplateRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    template_id: str
+    parameter_overrides: Optional[Dict[str, Any]] = None
+    actor: str = "api"
+
+
+class RunFromTemplateResponse(BaseModel):
+    template_id: str
+    template_name: str
+    scenario_type: str
+    parameters_used: Dict[str, Any]
+    is_mock: bool
+    scenario_request: Optional[Dict[str, Any]]
+    scenario_result: Optional[Dict[str, Any]]
+    summary: Optional[str]
+    audit_events_count: int
+    error: Optional[str] = None

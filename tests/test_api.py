@@ -1153,3 +1153,103 @@ class TestDealRegistry:
         data = client.get("/deals/reg-tc-001").json()
         assert data["tranche_count"] == 2
         client.delete("/deals/reg-tc-001")
+
+
+# ---------------------------------------------------------------------------
+# GET /scenarios/templates  /  POST /scenarios/from-template
+# ---------------------------------------------------------------------------
+
+class TestScenarioTemplates:
+
+    def test_list_templates_returns_200(self):
+        assert client.get("/scenarios/templates").status_code == 200
+
+    def test_list_templates_has_total(self):
+        data = client.get("/scenarios/templates").json()
+        assert "total" in data
+        assert data["total"] >= 9
+
+    def test_list_templates_has_templates_list(self):
+        data = client.get("/scenarios/templates").json()
+        assert isinstance(data["templates"], list)
+
+    def test_filter_by_stress_type(self):
+        data = client.get("/scenarios/templates?scenario_type=stress").json()
+        assert all(t["scenario_type"] == "stress" for t in data["templates"])
+
+    def test_filter_by_regulatory_type(self):
+        data = client.get("/scenarios/templates?scenario_type=regulatory").json()
+        assert all(t["scenario_type"] == "regulatory" for t in data["templates"])
+
+    def test_filter_by_historical_tag(self):
+        data = client.get("/scenarios/templates?tag=historical").json()
+        ids = {t["template_id"] for t in data["templates"]}
+        assert "gfc-2008" in ids
+
+    def test_template_has_parameters(self):
+        data = client.get("/scenarios/templates").json()
+        for t in data["templates"]:
+            assert "parameters" in t
+            assert "default_rate" in t["parameters"]
+
+    def test_run_from_template_base_returns_200(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "base",
+        })
+        assert resp.status_code == 200
+
+    def test_run_from_template_gfc_returns_200(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "gfc-2008",
+        })
+        assert resp.status_code == 200
+
+    def test_run_from_template_has_scenario_result(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "stress",
+        })
+        data = resp.json()
+        assert data["scenario_result"] is not None
+
+    def test_run_from_template_has_parameters_used(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "base",
+        })
+        data = resp.json()
+        assert "parameters_used" in data
+        assert "default_rate" in data["parameters_used"]
+
+    def test_run_from_template_with_overrides(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "base",
+            "parameter_overrides": {"spread_shock_bps": 100.0},
+        })
+        data = resp.json()
+        assert data["parameters_used"]["spread_shock_bps"] == 100.0
+
+    def test_run_from_unknown_template_returns_404(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "does-not-exist",
+        })
+        assert resp.status_code == 404
+
+    def test_run_from_template_template_name_in_response(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "gfc-2008",
+        })
+        data = resp.json()
+        assert data["template_name"] == "GFC 2008"
+
+    def test_run_from_template_is_mock_true(self):
+        resp = client.post("/scenarios/from-template", json={
+            "deal_input": _batch_deal_input(),
+            "template_id": "base",
+        })
+        assert resp.json()["is_mock"] is True
