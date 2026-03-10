@@ -11,6 +11,7 @@ Endpoints:
   POST /scenarios/sensitivity
   POST /analyze
   POST /optimize
+  POST /benchmarks/compare
   POST /drafts/investor-summary
   POST /drafts/ic-memo
   POST /approvals/request
@@ -32,6 +33,8 @@ from app.api.models import (
     ApplyApprovalRequest,
     BatchScenarioRequest,
     BatchScenarioResponse,
+    BenchmarkCompareRequest,
+    BenchmarkCompareResponse,
     CreateDealRequest,
     CreateDealResponse,
     DraftResponse,
@@ -56,6 +59,7 @@ from app.domain.tranche import Tranche
 from app.services import approval_service
 from app.workflows.create_deal_workflow import create_deal_workflow, deal_input_from_domain
 from app.workflows.batch_scenario_workflow import batch_scenario_workflow
+from app.workflows.benchmark_comparison_workflow import benchmark_comparison_workflow
 from app.workflows.deal_analytics_workflow import deal_analytics_workflow
 from app.workflows.tranche_optimizer_workflow import tranche_optimizer_workflow
 from app.workflows.generate_ic_memo_workflow import generate_ic_memo_workflow
@@ -273,6 +277,51 @@ def optimize_structure(request: OptimizeRequest):
         infeasible_reason=result.get("infeasible_reason"),
         candidates_tested=len(result["feasibility_table"]),
         feasible_count=feasible_count,
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /benchmarks/compare
+# ---------------------------------------------------------------------------
+
+@router.post("/benchmarks/compare", response_model=BenchmarkCompareResponse, tags=["analytics"])
+def compare_to_benchmarks(request: BenchmarkCompareRequest):
+    """
+    Compare a deal's scenario outputs against historical CLO market benchmarks.
+
+    Scores each metric (equity IRR, OC cushion, WAC, etc.) against p25/p50/p75
+    percentile bands for the matching vintage + region cohort, and returns an
+    overall positioning assessment (strong / median / weak / mixed).
+
+    All benchmark data is tagged [demo] (DEMO_BENCHMARK_DATA).
+    """
+    result = benchmark_comparison_workflow(
+        deal_input=request.deal_input,
+        scenario_outputs=request.scenario_outputs,
+        vintage=request.vintage,
+        region=request.region,
+        asset_class=request.asset_class,
+        actor=request.actor,
+    )
+
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return BenchmarkCompareResponse(
+        deal_id=result["deal_id"],
+        comparison_id=result["comparison_id"],
+        compared_at=result["compared_at"],
+        vintage=result["vintage"],
+        region=result["region"],
+        overall_position=result["overall_position"],
+        overall_label=result["overall_label"],
+        above_median_count=result["above_median_count"],
+        below_median_count=result["below_median_count"],
+        metric_scores=result["metric_scores"],
+        comparison_report=result["comparison_report"],
+        is_mock=result["is_mock"],
         audit_events_count=len(result.get("audit_events", [])),
         error=result.get("error"),
     )

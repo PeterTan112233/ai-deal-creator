@@ -788,3 +788,93 @@ class TestOptimize:
         bad["deal_id"] = ""
         resp = client.post("/optimize", json={"deal_input": bad, "aaa_min": 0.60, "aaa_max": 0.65, "aaa_step": 0.025})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /benchmarks/compare
+# ---------------------------------------------------------------------------
+
+_BASE_OUTPUTS = {
+    "equity_irr":     0.115,
+    "aaa_size_pct":   0.630,
+    "oc_cushion_aaa": 0.195,
+    "ic_cushion_aaa": 0.700,
+    "was":            0.042,
+    "wac":            0.095,
+    "equity_wal":     5.0,
+    "scenario_npv":   -2_000_000,
+}
+
+
+class TestBenchmarkCompare:
+
+    def test_returns_200(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+            "region": "US",
+        })
+        assert resp.status_code == 200
+
+    def test_comparison_id_present(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+            "region": "US",
+        })
+        assert resp.json()["comparison_id"].startswith("bench-")
+
+    def test_overall_position_valid(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+            "region": "US",
+        })
+        assert resp.json()["overall_position"] in ("strong", "median", "weak", "mixed")
+
+    def test_metric_scores_returned(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+        })
+        assert len(resp.json()["metric_scores"]) > 0
+
+    def test_report_contains_demo_tag(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+        })
+        assert "DEMO" in resp.json()["comparison_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_unknown_vintage_returns_422(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 1990,
+            "region": "US",
+        })
+        assert resp.status_code == 422
+
+    def test_above_median_and_below_median_counts(self):
+        resp = client.post("/benchmarks/compare", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_outputs": _BASE_OUTPUTS,
+            "vintage": 2024,
+        })
+        data = resp.json()
+        assert "above_median_count" in data
+        assert "below_median_count" in data
+        assert data["above_median_count"] + data["below_median_count"] <= len(data["metric_scores"])

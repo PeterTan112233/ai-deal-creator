@@ -263,6 +263,36 @@ class OptimizeResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /benchmarks/compare
+# ---------------------------------------------------------------------------
+
+class BenchmarkCompareRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    scenario_outputs: Dict[str, Any]
+    vintage: Optional[int] = None
+    region: Optional[str] = None
+    asset_class: str = "broadly_syndicated_loans"
+    actor: str = "api"
+
+
+class BenchmarkCompareResponse(BaseModel):
+    deal_id: str
+    comparison_id: str
+    compared_at: str
+    vintage: int
+    region: str
+    overall_position: str
+    overall_label: str
+    above_median_count: int
+    below_median_count: int
+    metric_scores: List[Dict[str, Any]]
+    comparison_report: str
+    is_mock: bool
+    audit_events_count: int
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /publish-check
 # ---------------------------------------------------------------------------
 
