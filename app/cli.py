@@ -121,6 +121,47 @@ def _text_summary(result: dict) -> str:
             lines.append(result["summary"])
         return "\n".join(lines)
 
+    # Template suite result
+    if "templates_run" in result and "comparison_table" in result:
+        lines += [
+            "=" * 72,
+            f"  TEMPLATE SUITE  [demo]  —  {result['templates_run']} templates run",
+            "=" * 72,
+            "",
+            f"  {'Template':<28} {'Type':<12} {'IRR':>8}  {'OC Cush':>9}",
+            "  " + "-" * 60,
+        ]
+        for r in result.get("results", []):
+            if r["status"] != "complete":
+                lines.append(f"  {r['template_name']:<28} FAILED")
+                continue
+            irr = r["outputs"].get("equity_irr")
+            oc  = r["outputs"].get("oc_cushion_aaa")
+            irr_s = f"{irr:.1%}" if irr is not None else "n/a"
+            oc_s  = f"{oc:+.1%}" if oc  is not None else "n/a"
+            lines.append(f"  {r['template_name']:<28} {r['scenario_type']:<12} {irr_s:>8}  {oc_s:>9}")
+        if result.get("comparison_table"):
+            lines += ["", "  Best / Worst per metric:"]
+            for row in result["comparison_table"]:
+                lines.append(f"    {row['metric']}: best={row['best_template']}  worst={row['worst_template']}")
+        lines += ["", "=" * 72]
+        return "\n".join(lines)
+
+    # Template list result
+    if "templates" in result and "total" in result:
+        lines += [
+            "=" * 64,
+            f"  SCENARIO TEMPLATES  ({result['total']} available)  [demo]",
+            "=" * 64,
+            f"  {'ID':<34} {'Type':<12} {'Tags'}",
+            "  " + "-" * 60,
+        ]
+        for t in result.get("templates", []):
+            tags = ", ".join(t.get("tags", []))
+            lines.append(f"  {t['template_id']:<34} {t['scenario_type']:<12} {tags}")
+        lines.append("=" * 64)
+        return "\n".join(lines)
+
     # Fallback
     return json.dumps(result, indent=2, default=str)
 
@@ -237,6 +278,54 @@ def cmd_compare(args: argparse.Namespace) -> dict:
     return compare_versions_workflow(v1_deal=v1, v2_deal=v2, actor=args.actor)
 
 
+def cmd_template(args: argparse.Namespace) -> dict:
+    """Run a single named template against a deal."""
+    from app.workflows.run_scenario_workflow import run_scenario_workflow
+    from app.services import scenario_template_service
+
+    try:
+        params = scenario_template_service.apply_template(args.template_id)
+    except KeyError:
+        _exit_error(f"Unknown template '{args.template_id}'. "
+                    f"Run 'templates' to list available templates.")
+
+    tmpl = scenario_template_service.get_template(args.template_id)
+    deal = _load_deal(args.deal_file)
+    return run_scenario_workflow(
+        deal_input=deal,
+        scenario_name=tmpl["name"],
+        scenario_type=tmpl["scenario_type"],
+        parameter_overrides=params,
+        actor=args.actor,
+    )
+
+
+def cmd_template_suite(args: argparse.Namespace) -> dict:
+    """Run all (or filtered) templates against a deal."""
+    from app.workflows.template_suite_workflow import template_suite_workflow
+
+    deal = _load_deal(args.deal_file)
+    template_ids = args.templates.split(",") if args.templates else None
+    return template_suite_workflow(
+        deal,
+        template_ids=template_ids,
+        scenario_type=args.scenario_type,
+        tag=args.tag,
+        actor=args.actor,
+    )
+
+
+def cmd_templates(_args: argparse.Namespace) -> dict:
+    """List all available scenario templates."""
+    from app.services import scenario_template_service
+
+    templates = scenario_template_service.list_templates(
+        scenario_type=getattr(_args, "scenario_type", None),
+        tag=getattr(_args, "tag", None),
+    )
+    return {"total": len(templates), "templates": templates}
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -313,6 +402,27 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("v1_file", help="Path to version-1 deal JSON file.")
     p.add_argument("v2_file", help="Path to version-2 deal JSON file.")
 
+    # ---- templates ----
+    p = subparsers.add_parser("templates", parents=[_globals],
+                              help="List available scenario templates.")
+    p.add_argument("--scenario-type", help="Filter by type (base, stress, regulatory).")
+    p.add_argument("--tag", help="Filter by tag (e.g. historical, standard).")
+
+    # ---- template ----
+    p = subparsers.add_parser("template", parents=[_globals],
+                              help="Run a single named scenario template.")
+    p.add_argument("deal_file", help="Path to deal JSON file.")
+    p.add_argument("template_id", help="Template ID (e.g. gfc-2008, covid-2020, base).")
+
+    # ---- template-suite ----
+    p = subparsers.add_parser("template-suite", parents=[_globals],
+                              help="Run all (or filtered) templates against a deal.")
+    p.add_argument("deal_file", help="Path to deal JSON file.")
+    p.add_argument("--templates", metavar="ID1,ID2,...",
+                   help="Comma-separated template IDs (default: all).")
+    p.add_argument("--scenario-type", help="Filter by scenario_type.")
+    p.add_argument("--tag", help="Filter by tag.")
+
     return parser
 
 
@@ -330,12 +440,15 @@ def _add_aaa_args(p: argparse.ArgumentParser) -> None:
 # ---------------------------------------------------------------------------
 
 _COMMAND_MAP = {
-    "pipeline":  cmd_pipeline,
-    "analyze":   cmd_analyze,
-    "optimize":  cmd_optimize,
-    "benchmark": cmd_benchmark,
-    "draft":     cmd_draft,
-    "compare":   cmd_compare,
+    "pipeline":       cmd_pipeline,
+    "analyze":        cmd_analyze,
+    "optimize":       cmd_optimize,
+    "benchmark":      cmd_benchmark,
+    "draft":          cmd_draft,
+    "compare":        cmd_compare,
+    "templates":      cmd_templates,
+    "template":       cmd_template,
+    "template-suite": cmd_template_suite,
 }
 
 

@@ -432,3 +432,25 @@ class RunFromTemplateResponse(BaseModel):
     summary: Optional[str]
     audit_events_count: int
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/template-suite
+# ---------------------------------------------------------------------------
+
+class TemplateSuiteRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    template_ids: Optional[List[str]] = None   # None = run all (or filtered)
+    scenario_type: Optional[str] = None        # filter by scenario_type
+    tag: Optional[str] = None                  # filter by tag
+    actor: str = "api"
+
+
+class TemplateSuiteResponse(BaseModel):
+    deal_id: str
+    templates_run: int
+    results: List[Dict[str, Any]]
+    comparison_table: List[Dict[str, Any]]
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None

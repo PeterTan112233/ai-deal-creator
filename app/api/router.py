@@ -68,8 +68,11 @@ from app.api.models import (
     SensitivityResponse,
     ScenarioTemplateResponse,
     TemplateListResponse,
+    TemplateSuiteRequest,
+    TemplateSuiteResponse,
 )
 from app.services import deal_registry_service, scenario_template_service
+from app.workflows.template_suite_workflow import template_suite_workflow
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
 from app.domain.structure import Structure
@@ -778,5 +781,47 @@ def run_from_template(request: RunFromTemplateRequest):
         scenario_result=result.get("scenario_result"),
         summary=result.get("summary"),
         audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/template-suite
+# ---------------------------------------------------------------------------
+
+@router.post("/scenarios/template-suite", response_model=TemplateSuiteResponse,
+             tags=["scenarios"])
+def run_template_suite(request: TemplateSuiteRequest):
+    """
+    Run all (or a filtered subset of) named scenario templates against a deal.
+
+    Returns a per-template result list and a metric comparison table showing
+    which template produces the best/worst equity IRR, OC cushion, etc.
+
+    Filter options:
+      - template_ids:   explicit list of template IDs to run
+      - scenario_type:  "base", "stress", or "regulatory"
+      - tag:            e.g. "historical", "standard", "regulatory"
+
+    All outputs are tagged [demo].
+    """
+    result = template_suite_workflow(
+        deal_input=request.deal_input,
+        template_ids=request.template_ids,
+        scenario_type=request.scenario_type,
+        tag=request.tag,
+        actor=request.actor,
+    )
+
+    if result.get("error") and result["templates_run"] == 0:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return TemplateSuiteResponse(
+        deal_id=result["deal_id"],
+        templates_run=result["templates_run"],
+        results=result["results"],
+        comparison_table=result["comparison_table"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
         error=result.get("error"),
     )

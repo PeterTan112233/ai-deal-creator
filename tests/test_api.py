@@ -1253,3 +1253,78 @@ class TestScenarioTemplates:
             "template_id": "base",
         })
         assert resp.json()["is_mock"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /scenarios/template-suite
+# ---------------------------------------------------------------------------
+
+class TestTemplateSuite:
+
+    def test_returns_200_stress_only(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_type": "stress",
+        })
+        assert resp.status_code == 200
+
+    def test_templates_run_positive(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_type": "stress",
+        })
+        assert resp.json()["templates_run"] >= 4
+
+    def test_results_list_non_empty(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_type": "stress",
+        })
+        assert len(resp.json()["results"]) >= 4
+
+    def test_comparison_table_non_empty(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_type": "stress",
+        })
+        assert len(resp.json()["comparison_table"]) > 0
+
+    def test_explicit_template_ids(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "template_ids": ["base", "gfc-2008"],
+        })
+        data = resp.json()
+        assert data["templates_run"] == 2
+        ids = {r["template_id"] for r in data["results"]}
+        assert ids == {"base", "gfc-2008"}
+
+    def test_tag_filter_historical(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "tag": "historical",
+        })
+        data = resp.json()
+        ids = {r["template_id"] for r in data["results"]}
+        assert "gfc-2008" in ids
+
+    def test_invalid_filter_returns_422(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "scenario_type": "nonexistent-type",
+        })
+        assert resp.status_code == 422
+
+    def test_is_mock_true(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "template_ids": ["base"],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_audit_events_count_positive(self):
+        resp = client.post("/scenarios/template-suite", json={
+            "deal_input": _batch_deal_input(),
+            "template_ids": ["base", "stress"],
+        })
+        assert resp.json()["audit_events_count"] >= 3
