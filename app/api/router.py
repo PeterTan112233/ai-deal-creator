@@ -4,23 +4,26 @@ app/api/router.py
 FastAPI router — all AI Deal Creator endpoints.
 
 Endpoints:
-  GET  /health
-  POST /deals
-  POST /scenarios
-  POST /scenarios/batch
-  POST /scenarios/sensitivity
-  POST /analyze
-  POST /optimize
-  POST /benchmarks/compare
-  POST /pipeline
-  POST /compare
-  POST /drafts/investor-summary
-  POST /drafts/ic-memo
-  POST /approvals/request
-  POST /approvals/approve
-  POST /approvals/reject
-  POST /approvals/apply
-  POST /publish-check
+  GET    /health
+  POST   /deals
+  GET    /deals
+  GET    /deals/{deal_id}
+  DELETE /deals/{deal_id}
+  POST   /scenarios
+  POST   /scenarios/batch
+  POST   /scenarios/sensitivity
+  POST   /analyze
+  POST   /optimize
+  POST   /benchmarks/compare
+  POST   /pipeline
+  POST   /compare
+  POST   /drafts/investor-summary
+  POST   /drafts/ic-memo
+  POST   /approvals/request
+  POST   /approvals/approve
+  POST   /approvals/reject
+  POST   /approvals/apply
+  POST   /publish-check
 
 Phase 1: all engine calls go through mock services.
 Phase 2+: set _MOCK_MODE = False in model_engine_service and
@@ -41,6 +44,10 @@ from app.api.models import (
     CompareResponse,
     CreateDealRequest,
     CreateDealResponse,
+    DealDetailResponse,
+    DealListResponse,
+    DealSummaryResponse,
+    DeleteDealResponse,
     DraftResponse,
     GenerateDraftRequest,
     GenerateIcMemoRequest,
@@ -58,6 +65,7 @@ from app.api.models import (
     SensitivityRequest,
     SensitivityResponse,
 )
+from app.services import deal_registry_service
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
 from app.domain.structure import Structure
@@ -147,6 +155,9 @@ def create_deal(request: CreateDealRequest):
         request.market_assumptions.model_dump() if request.market_assumptions else None
     )
     deal_input = deal_input_from_domain(deal, collateral, structure, market_assumptions)
+
+    # Auto-register in the deal registry for GET /deals retrieval
+    deal_registry_service.register(deal_input)
 
     return CreateDealResponse(
         deal_id=summary["deal_id"],
@@ -367,6 +378,9 @@ def run_pipeline(request: PipelineRequest):
 
     if result.get("error") and not result["stages"]["analytics"]:
         raise HTTPException(status_code=422, detail=result["error"])
+
+    # Persist pipeline result in the registry (best-effort; ignores unknown deal_ids)
+    deal_registry_service.update_pipeline_result(result["deal_id"], result)
 
     return PipelineResponse(
         pipeline_id=result["pipeline_id"],
@@ -637,3 +651,57 @@ def publish_check(request: PublishCheckRequest):
         draft_type=result["draft_type"],
         target_channel=result["target_channel"],
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /deals
+# ---------------------------------------------------------------------------
+
+@router.get("/deals", response_model=DealListResponse, tags=["deals"])
+def list_deals():
+    """
+    List all deals registered in the in-memory deal registry.
+
+    Deals are registered automatically when POST /deals is called.
+    Sorted by registration time, most recent first.
+    """
+    records = deal_registry_service.list_all()
+    return DealListResponse(
+        total=len(records),
+        deals=[DealSummaryResponse(**{k: v for k, v in r.items()
+                                      if k not in ("deal_input", "last_pipeline_result")})
+               for r in records],
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /deals/{deal_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/deals/{deal_id}", response_model=DealDetailResponse, tags=["deals"])
+def get_deal(deal_id: str):
+    """
+    Retrieve a single deal from the registry, including its last pipeline result.
+
+    Returns 404 if the deal_id is not found in the registry.
+    """
+    record = deal_registry_service.get(deal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deal '{deal_id}' not found in registry.")
+    return DealDetailResponse(**record)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /deals/{deal_id}
+# ---------------------------------------------------------------------------
+
+@router.delete("/deals/{deal_id}", response_model=DeleteDealResponse, tags=["deals"])
+def delete_deal(deal_id: str):
+    """
+    Remove a deal from the in-memory registry.
+
+    Returns deleted=True if the deal was found and removed,
+    deleted=False if it was not in the registry.
+    """
+    deleted = deal_registry_service.unregister(deal_id)
+    return DeleteDealResponse(deal_id=deal_id, deleted=deleted)

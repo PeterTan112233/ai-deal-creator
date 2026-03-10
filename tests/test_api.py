@@ -1029,3 +1029,127 @@ class TestCompare:
             "v1_result": v1_result,
         })
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GET /deals  /  GET /deals/{deal_id}  /  DELETE /deals/{deal_id}
+# ---------------------------------------------------------------------------
+
+class TestDealRegistry:
+    """Tests for deal registry endpoints.
+
+    NOTE: the registry is in-memory and shared across the TestClient session.
+    Each test that needs a clean slate calls POST /deals first to ensure
+    the target deal_id exists, then cleans up via DELETE.
+    """
+
+    def _create_deal(self, deal_id="reg-api-001", name="Registry API CLO"):
+        return client.post("/deals", json={
+            "deal": {
+                "deal_id": deal_id,
+                "name": name,
+                "issuer": "Registry Issuer LLC",
+                "region": "US",
+                "currency": "USD",
+            },
+            "collateral": {
+                "collateral_id": f"coll-{deal_id}",
+                "pool_id": f"pool-{deal_id}",
+                "asset_class": "broadly_syndicated_loans",
+                "portfolio_size": 500_000_000,
+                "was": 0.042,
+                "warf": 2800.0,
+                "wal": 5.2,
+                "diversity_score": 60,
+                "ccc_bucket": 0.05,
+            },
+            "tranches": [
+                {"tranche_id": "t-aaa", "name": "AAA", "seniority": 1, "size_pct": 0.62},
+                {"tranche_id": "t-eq",  "name": "Equity", "seniority": 2, "size_pct": 0.10},
+            ],
+        })
+
+    def test_list_deals_returns_200(self):
+        resp = client.get("/deals")
+        assert resp.status_code == 200
+
+    def test_list_deals_has_total_and_deals(self):
+        resp = client.get("/deals")
+        data = resp.json()
+        assert "total" in data
+        assert "deals" in data
+        assert isinstance(data["deals"], list)
+
+    def test_create_deal_auto_registers(self):
+        self._create_deal("reg-auto-001")
+        resp = client.get("/deals")
+        ids = [d["deal_id"] for d in resp.json()["deals"]]
+        assert "reg-auto-001" in ids
+        client.delete("/deals/reg-auto-001")
+
+    def test_get_deal_returns_200(self):
+        self._create_deal("reg-get-001")
+        resp = client.get("/deals/reg-get-001")
+        assert resp.status_code == 200
+        client.delete("/deals/reg-get-001")
+
+    def test_get_deal_has_deal_id(self):
+        self._create_deal("reg-get-002")
+        data = client.get("/deals/reg-get-002").json()
+        assert data["deal_id"] == "reg-get-002"
+        client.delete("/deals/reg-get-002")
+
+    def test_get_deal_has_deal_input(self):
+        self._create_deal("reg-get-003")
+        data = client.get("/deals/reg-get-003").json()
+        assert "deal_input" in data
+        client.delete("/deals/reg-get-003")
+
+    def test_get_deal_pipeline_count_zero_initially(self):
+        self._create_deal("reg-get-004")
+        data = client.get("/deals/reg-get-004").json()
+        assert data["pipeline_count"] == 0
+        client.delete("/deals/reg-get-004")
+
+    def test_get_unknown_deal_returns_404(self):
+        resp = client.get("/deals/deal-does-not-exist-xyz")
+        assert resp.status_code == 404
+
+    def test_delete_deal_returns_200(self):
+        self._create_deal("reg-del-001")
+        resp = client.delete("/deals/reg-del-001")
+        assert resp.status_code == 200
+
+    def test_delete_deal_deleted_true(self):
+        self._create_deal("reg-del-002")
+        data = client.delete("/deals/reg-del-002").json()
+        assert data["deleted"] is True
+
+    def test_delete_unknown_deal_deleted_false(self):
+        data = client.delete("/deals/deal-never-existed-xyz").json()
+        assert data["deleted"] is False
+
+    def test_delete_removes_from_list(self):
+        self._create_deal("reg-del-003")
+        client.delete("/deals/reg-del-003")
+        resp = client.get("/deals/reg-del-003")
+        assert resp.status_code == 404
+
+    def test_list_total_increments_on_create(self):
+        before = client.get("/deals").json()["total"]
+        self._create_deal(f"reg-count-{before}")
+        after = client.get("/deals").json()["total"]
+        assert after == before + 1
+        client.delete(f"/deals/reg-count-{before}")
+
+    def test_deal_summary_has_portfolio_size(self):
+        self._create_deal("reg-size-001")
+        data = client.get("/deals/reg-size-001").json()
+        assert data["portfolio_size"] == 500_000_000
+        client.delete("/deals/reg-size-001")
+
+    def test_deal_summary_has_tranche_count(self):
+        self._create_deal("reg-tc-001")
+        data = client.get("/deals/reg-tc-001").json()
+        assert data["tranche_count"] == 2
+        client.delete("/deals/reg-tc-001")

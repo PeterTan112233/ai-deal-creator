@@ -359,3 +359,38 @@ class PublishCheckResponse(BaseModel):
     draft_id: str
     draft_type: str
     target_channel: str
+
+
+# ---------------------------------------------------------------------------
+# GET /deals  /  GET /deals/{deal_id}  /  DELETE /deals/{deal_id}
+# ---------------------------------------------------------------------------
+
+class DealSummaryResponse(BaseModel):
+    deal_id: str
+    name: str
+    issuer: str
+    region: Optional[str]
+    currency: str
+    manager: Optional[str]
+    registered_at: str
+    status: str
+    portfolio_size: Optional[float]
+    asset_class: Optional[str]
+    tranche_count: int
+    pipeline_count: int
+    last_pipeline_at: Optional[str]
+
+
+class DealDetailResponse(DealSummaryResponse):
+    deal_input: Dict[str, Any]
+    last_pipeline_result: Optional[Dict[str, Any]]
+
+
+class DealListResponse(BaseModel):
+    total: int
+    deals: List[DealSummaryResponse]
+
+
+class DeleteDealResponse(BaseModel):
+    deal_id: str
+    deleted: bool
