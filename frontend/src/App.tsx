@@ -6,6 +6,7 @@ import { HealthCheckPage } from "./pages/HealthCheckPage";
 import { PortfolioScoringPage } from "./pages/PortfolioScoringPage";
 import { ScenarioRunnerPage } from "./pages/ScenarioRunnerPage";
 import { WatchlistPage } from "./pages/WatchlistPage";
+import { DraftsPage } from "./pages/DraftsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/portfolio" element={<PortfolioScoringPage />} />
             <Route path="/scenarios" element={<ScenarioRunnerPage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
+            <Route path="/drafts" element={<DraftsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

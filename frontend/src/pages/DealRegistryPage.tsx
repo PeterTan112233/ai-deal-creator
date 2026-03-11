@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listDeals, registerDeal, deleteDeal, getDeal, type DealSummary } from "../api/deals";
 import { SectionCard } from "../components/SectionCard";
+import { DealForm } from "../components/DealForm";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { sampleDeals } from "../lib/sampleDeals";
-import { Activity, Play, Trash2, Plus, ChevronUp, Database } from "lucide-react";
+import { Activity, Play, Trash2, Plus, ChevronUp, Database, Code } from "lucide-react";
 
 function fmt(n: number | null): string {
   if (n == null) return "—";
@@ -29,6 +30,7 @@ export function DealRegistryPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [jsonMode, setJsonMode] = useState(false);
   const [json, setJson] = useState(() => JSON.stringify(sampleDeals.usBSL, null, 2));
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -97,40 +99,78 @@ export function DealRegistryPage() {
 
       {/* Register form */}
       {showForm && (
-        <SectionCard title="Register New Deal">
-          <p className="text-xs text-gray-500 mb-2">
-            Paste a deal JSON (same format as Health Check). The deal will be saved in the registry
-            for this server session.
-          </p>
-          <div className="flex gap-2 mb-2">
-            {(["usBSL", "euCLO", "mmCLO"] as const).map((k) => (
-              <Button
-                key={k}
-                variant="outline"
-                size="sm"
-                onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
+        <SectionCard
+          title="Register New Deal"
+          action={
+            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+              <button
+                onClick={() => setJsonMode(false)}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                  !jsonMode ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                }`}
               >
-                {k === "usBSL" ? "US BSL" : k === "euCLO" ? "EU CLO" : "MM CLO"}
-              </Button>
-            ))}
-          </div>
-          <textarea
-            className="w-full h-48 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
-            value={json}
-            onChange={(e) => setJson(e.target.value)}
-            spellCheck={false}
-          />
-          {parseError && <p className="text-red-600 text-sm mt-1">{parseError}</p>}
-          {registerMutation.isError && (
-            <p className="text-red-600 text-sm mt-1">
-              Error: {String(registerMutation.error)}
-            </p>
+                Form
+              </button>
+              <button
+                onClick={() => setJsonMode(true)}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                  jsonMode ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Code size={11} /> JSON
+              </button>
+            </div>
+          }
+        >
+          {!jsonMode ? (
+            <>
+              <DealForm
+                onSubmit={(dealInput) => registerMutation.mutate(dealInput)}
+                isSubmitting={registerMutation.isPending}
+              />
+              {registerMutation.isError && (
+                <p className="text-red-600 text-sm mt-2">
+                  Error: {String(registerMutation.error)}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 mb-2">
+                Paste a deal JSON (same format as Health Check). The deal will be saved in the
+                registry for this server session.
+              </p>
+              <div className="flex gap-2 mb-2">
+                {(["usBSL", "euCLO", "mmCLO"] as const).map((k) => (
+                  <Button
+                    key={k}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
+                  >
+                    {k === "usBSL" ? "US BSL" : k === "euCLO" ? "EU CLO" : "MM CLO"}
+                  </Button>
+                ))}
+              </div>
+              <textarea
+                className="w-full h-48 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
+                value={json}
+                onChange={(e) => setJson(e.target.value)}
+                spellCheck={false}
+              />
+              {parseError && <p className="text-red-600 text-sm mt-1">{parseError}</p>}
+              {registerMutation.isError && (
+                <p className="text-red-600 text-sm mt-1">
+                  Error: {String(registerMutation.error)}
+                </p>
+              )}
+              <div className="mt-3">
+                <Button onClick={handleRegister} disabled={registerMutation.isPending}>
+                  {registerMutation.isPending ? "Registering…" : "Register Deal"}
+                </Button>
+              </div>
+            </>
           )}
-          <div className="mt-3">
-            <Button onClick={handleRegister} disabled={registerMutation.isPending}>
-              {registerMutation.isPending ? "Registering…" : "Register Deal"}
-            </Button>
-          </div>
         </SectionCard>
       )}
 
