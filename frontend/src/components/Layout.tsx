@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart2, Play, Bell, Database, FileCheck } from "lucide-react";
+import { Activity, BarChart2, Play, Bell, Database, FileCheck, GitCompare, TrendingUp } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const navItems = [
@@ -7,6 +7,8 @@ const navItems = [
   { to: "/health", icon: Activity, label: "Deal Health" },
   { to: "/portfolio", icon: BarChart2, label: "Portfolio Scoring" },
   { to: "/scenarios", icon: Play, label: "Scenario Runner" },
+  { to: "/compare", icon: GitCompare, label: "Comparison" },
+  { to: "/sensitivity", icon: TrendingUp, label: "Sensitivity" },
   { to: "/watchlist", icon: Bell, label: "Watchlist" },
   { to: "/drafts", icon: FileCheck, label: "Drafts & Approvals" },
 ];
