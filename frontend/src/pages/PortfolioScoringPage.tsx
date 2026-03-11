@@ -188,7 +188,7 @@ export function PortfolioScoringPage() {
                 {result.score_ranking.map((row) => (
                   <tr key={row.deal_id}>
                     <td className="py-2 pr-3 text-gray-500 font-mono">#{row.rank}</td>
-                    <td className="py-2 pr-3 font-medium text-gray-800">{row.deal_name}</td>
+                    <td className="py-2 pr-3 font-medium text-gray-800">{row.name}</td>
                     <td className="py-2 pr-3">
                       <div className="flex items-center gap-2">
                         <div className="h-2 rounded-full bg-gray-100 flex-1 max-w-24">
@@ -221,13 +221,13 @@ export function PortfolioScoringPage() {
                     className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-100"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-sm">{item.deal_name}</p>
-                      <p className="text-xs text-gray-600 mt-0.5">{item.reason}</p>
+                      <p className="font-medium text-gray-900 text-sm">{item.name}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{item.reasons?.[0] ?? ""}</p>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {(item.flags ?? []).map((flag: string, j: number) => (
+                      {(item.reasons ?? []).slice(1).map((r: string, j: number) => (
                         <Badge key={j} variant="danger">
-                          {flag}
+                          {r}
                         </Badge>
                       ))}
                     </div>

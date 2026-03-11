@@ -9,7 +9,7 @@ export interface PortfolioScoringResult {
   score_ranking: {
     rank: number;
     deal_id: string;
-    deal_name: string;
+    name: string;
     composite_score: number | null;
     grade: string | null;
   }[];
@@ -17,9 +17,10 @@ export interface PortfolioScoringResult {
   portfolio_avg_score: number | null;
   needs_attention: {
     deal_id: string;
-    deal_name: string;
-    reason: string;
-    flags: string[];
+    name: string;
+    grade: string | null;
+    score: number | null;
+    reasons: string[];
   }[];
   scorecard_report: string;
   audit_events_count: number;
