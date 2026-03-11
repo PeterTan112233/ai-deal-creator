@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -31,12 +32,28 @@ function fmtKRI(kri: KRI): string {
 const DIM_COLORS = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444"];
 
 export function HealthCheckPage() {
-  const [json, setJson] = useState(() => JSON.stringify(sampleDeals.usBSL, null, 2));
+  const location = useLocation();
+  const preloaded = (location.state as { dealInput?: Record<string, unknown> } | null)
+    ?.dealInput;
+
+  const [json, setJson] = useState(() =>
+    preloaded
+      ? JSON.stringify(preloaded, null, 2)
+      : JSON.stringify(sampleDeals.usBSL, null, 2)
+  );
   const [parseError, setParseError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => runHealthCheck(input),
   });
+
+  // If navigated here from Deal Registry with a deal, auto-run
+  useEffect(() => {
+    if (preloaded) {
+      mutation.mutate(preloaded);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleRun() {
     setParseError(null);

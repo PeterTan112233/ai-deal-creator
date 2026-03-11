@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { getScenarioTemplates, runBatchScenarios, type ScenarioTemplate, type BatchScenarioResult } from "../api/scenarios";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
@@ -35,7 +36,15 @@ function fmtNum(v: unknown): string {
 }
 
 export function ScenarioRunnerPage() {
-  const [json, setJson] = useState(() => JSON.stringify(sampleDeals.usBSL, null, 2));
+  const location = useLocation();
+  const preloaded = (location.state as { dealInput?: Record<string, unknown> } | null)
+    ?.dealInput;
+
+  const [json, setJson] = useState(() =>
+    preloaded
+      ? JSON.stringify(preloaded, null, 2)
+      : JSON.stringify(sampleDeals.usBSL, null, 2)
+  );
   const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 

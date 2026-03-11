@@ -1,8 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart2, Play, Bell } from "lucide-react";
+import { Activity, BarChart2, Play, Bell, Database } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const navItems = [
+  { to: "/deals", icon: Database, label: "Deal Registry" },
   { to: "/health", icon: Activity, label: "Deal Health" },
   { to: "/portfolio", icon: BarChart2, label: "Portfolio Scoring" },
   { to: "/scenarios", icon: Play, label: "Scenario Runner" },
