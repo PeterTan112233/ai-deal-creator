@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Portfolio scoring result
+    if "scorecard_id" in result and "score_ranking" in result:
+        if result.get("scorecard_report"):
+            lines.append(result["scorecard_report"])
+            return "\n".join(lines)
+
     # Scoring result
     if "scoring_id" in result and "composite_score" in result:
         if result.get("score_report"):
@@ -340,6 +346,14 @@ def cmd_score(args: argparse.Namespace) -> dict:
     return deal_scoring_workflow(deal, actor=args.actor)
 
 
+def cmd_portfolio_score(args: argparse.Namespace) -> dict:
+    """Score every deal in a portfolio and produce a unified scorecard."""
+    from app.workflows.portfolio_scoring_workflow import portfolio_scoring_workflow
+
+    deal_inputs = [_load_deal(f) for f in args.deal_files]
+    return portfolio_scoring_workflow(deal_inputs, actor=args.actor)
+
+
 def cmd_portfolio_stress(args: argparse.Namespace) -> dict:
     """Run stress template battery across multiple deals, rank by vulnerability."""
     from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
@@ -456,6 +470,11 @@ def _build_parser() -> argparse.ArgumentParser:
                               help="Score a deal on a 0-100 composite scale (A-D grade).")
     p.add_argument("deal_file", help="Path to deal JSON file.")
 
+    # ---- portfolio-score ----
+    p = subparsers.add_parser("portfolio-score", parents=[_globals],
+                              help="Score every deal in a portfolio (A-D grades, 0-100).")
+    p.add_argument("deal_files", nargs="+", help="Paths to deal JSON files.")
+
     # ---- portfolio-stress ----
     p = subparsers.add_parser("portfolio-stress", parents=[_globals],
                               help="Run stress template battery across multiple deals.")
@@ -518,6 +537,7 @@ _COMMAND_MAP = {
     "compare":           cmd_compare,
     "score":             cmd_score,
     "portfolio":         cmd_portfolio,
+    "portfolio-score":   cmd_portfolio_score,
     "portfolio-stress":  cmd_portfolio_stress,
     "templates":         cmd_templates,
     "template":          cmd_template,

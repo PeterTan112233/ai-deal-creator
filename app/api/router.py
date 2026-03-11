@@ -41,6 +41,8 @@ from app.api.models import (
     DealScoringRequest,
     PortfolioAnalyzeRequest,
     PortfolioAnalyzeResponse,
+    PortfolioScoringRequest,
+    PortfolioScoringResponse,
     PortfolioStressRequest,
     PortfolioStressResponse,
     ScoringRequest,
@@ -90,6 +92,7 @@ from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
 from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
+from app.workflows.portfolio_scoring_workflow import portfolio_scoring_workflow as _portfolio_scoring_workflow
 from app.workflows.deal_scoring_workflow import deal_scoring_workflow
 from app.services import watchlist_service
 from app.workflows.watchlist_workflow import watchlist_check_workflow
@@ -1142,3 +1145,46 @@ def score_registered_deal(deal_id: str, request: DealScoringRequest):
         raise HTTPException(status_code=422, detail="Registered deal has no deal_input.")
     result = deal_scoring_workflow(deal_input=deal_input, actor=request.actor)
     return _scoring_response(result)
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/score
+# ---------------------------------------------------------------------------
+
+@router.post("/portfolio/score", response_model=PortfolioScoringResponse,
+             tags=["portfolio"])
+def score_portfolio(request: PortfolioScoringRequest):
+    """
+    Score every deal in a portfolio and produce a unified scorecard.
+
+    Runs deal_scoring_workflow for each deal, then aggregates:
+      - Grade distribution (how many A/B/C/D)
+      - Portfolio average composite score
+      - Score ranking (best → worst)
+      - Deals needing attention (grade C or D, or risk flags)
+
+    Returns a formatted [demo] scorecard report.
+    """
+    result = _portfolio_scoring_workflow(
+        deal_inputs=request.deal_inputs,
+        actor=request.actor,
+    )
+
+    if result.get("error") and result["deal_count"] == 0:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return PortfolioScoringResponse(
+        scorecard_id=result["scorecard_id"],
+        run_at=result["run_at"],
+        deal_count=result["deal_count"],
+        scored_count=result["scored_count"],
+        deals=result["deals"],
+        score_ranking=result["score_ranking"],
+        grade_distribution=result["grade_distribution"],
+        portfolio_avg_score=result["portfolio_avg_score"],
+        needs_attention=result["needs_attention"],
+        scorecard_report=result["scorecard_report"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )

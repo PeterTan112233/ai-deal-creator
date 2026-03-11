@@ -572,6 +572,31 @@ class ScoringResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /portfolio/score
+# ---------------------------------------------------------------------------
+
+class PortfolioScoringRequest(BaseModel):
+    deal_inputs: List[Dict[str, Any]] = Field(min_length=1)
+    actor: str = "api"
+
+
+class PortfolioScoringResponse(BaseModel):
+    scorecard_id: str
+    run_at: str
+    deal_count: int
+    scored_count: int
+    deals: List[Dict[str, Any]]
+    score_ranking: List[Dict[str, Any]]
+    grade_distribution: Dict[str, Any]
+    portfolio_avg_score: Optional[float]
+    needs_attention: List[Dict[str, Any]]
+    scorecard_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /portfolio/stress-test
 # ---------------------------------------------------------------------------
 
