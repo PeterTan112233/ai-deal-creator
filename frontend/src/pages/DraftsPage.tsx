@@ -294,9 +294,11 @@ export function DraftsPage() {
             <div className="mt-2 bg-green-50 border border-green-100 rounded p-3 text-xs text-green-700">
               Scenario complete — equity IRR:{" "}
               <strong>
-                {scenarioResult.equity_irr != null
-                  ? `${((scenarioResult.equity_irr as number) * 100).toFixed(2)}%`
-                  : "—"}
+                {(() => {
+                  const outputs = scenarioResult.outputs as Record<string, unknown> | undefined;
+                  const irr = outputs?.equity_irr ?? scenarioResult.equity_irr;
+                  return irr != null ? `${((irr as number) * 100).toFixed(2)}%` : "—";
+                })()}
               </strong>
             </div>
           )}
