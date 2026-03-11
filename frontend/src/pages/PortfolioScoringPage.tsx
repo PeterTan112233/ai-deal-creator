@@ -14,7 +14,9 @@ import { GradeCircle } from "../components/GradeCircle";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { RegistryMultiSelect, resolveSelectedDeals } from "../components/RegistryMultiSelect";
 import { sampleDealsArray } from "../lib/sampleDeals";
+import { Database, Code } from "lucide-react";
 
 const GRADE_COLORS: Record<string, string> = {
   A: "#10b981",
@@ -25,6 +27,8 @@ const GRADE_COLORS: Record<string, string> = {
 };
 
 export function PortfolioScoringPage() {
+  const [mode, setMode] = useState<"registry" | "json">("registry");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [json, setJson] = useState(() => JSON.stringify(sampleDealsArray, null, 2));
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -32,12 +36,22 @@ export function PortfolioScoringPage() {
     mutationFn: (inputs: Record<string, unknown>[]) => scorePortfolio(inputs),
   });
 
-  function handleRun() {
+  async function handleRun() {
     setParseError(null);
     try {
-      const parsed = JSON.parse(json);
-      if (!Array.isArray(parsed)) throw new Error("Input must be a JSON array of deals");
-      mutation.mutate(parsed);
+      let inputs: Record<string, unknown>[];
+      if (mode === "registry") {
+        if (selected.size === 0) {
+          setParseError("Select at least one deal from the registry.");
+          return;
+        }
+        inputs = await resolveSelectedDeals(Array.from(selected));
+      } else {
+        const parsed = JSON.parse(json);
+        if (!Array.isArray(parsed)) throw new Error("Input must be a JSON array of deals");
+        inputs = parsed;
+      }
+      mutation.mutate(inputs);
     } catch (e) {
       setParseError(String(e));
     }
@@ -62,17 +76,52 @@ export function PortfolioScoringPage() {
       </div>
 
       {/* Input */}
-      <SectionCard title="Deal Array Input (JSON)">
-        <textarea
-          className="w-full h-52 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
-          value={json}
-          onChange={(e) => setJson(e.target.value)}
-          spellCheck={false}
-        />
-        {parseError && <p className="text-red-600 text-sm mt-1">{parseError}</p>}
+      <SectionCard
+        title="Deal Selection"
+        action={
+          <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+            <button
+              onClick={() => setMode("registry")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                mode === "registry"
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Database size={11} /> Registry
+            </button>
+            <button
+              onClick={() => setMode("json")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                mode === "json"
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Code size={11} /> JSON
+            </button>
+          </div>
+        }
+      >
+        {mode === "registry" ? (
+          <RegistryMultiSelect selected={selected} onChange={setSelected} />
+        ) : (
+          <textarea
+            className="w-full h-52 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
+            value={json}
+            onChange={(e) => setJson(e.target.value)}
+            spellCheck={false}
+          />
+        )}
+
+        {parseError && <p className="text-red-600 text-sm mt-2">{parseError}</p>}
         <div className="mt-3">
           <Button onClick={handleRun} disabled={mutation.isPending}>
-            {mutation.isPending ? "Scoring…" : "Score Portfolio"}
+            {mutation.isPending
+              ? "Scoring…"
+              : mode === "registry"
+              ? `Score ${selected.size} Deal${selected.size !== 1 ? "s" : ""}`
+              : "Score Portfolio"}
           </Button>
         </div>
       </SectionCard>
@@ -176,7 +225,7 @@ export function PortfolioScoringPage() {
                       <p className="text-xs text-gray-600 mt-0.5">{item.reason}</p>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {(item.flags ?? []).map((flag, j) => (
+                      {(item.flags ?? []).map((flag: string, j: number) => (
                         <Badge key={j} variant="danger">
                           {flag}
                         </Badge>

@@ -9,6 +9,7 @@ import { WatchlistPage } from "./pages/WatchlistPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { ComparisonPage } from "./pages/ComparisonPage";
 import { SensitivityPage } from "./pages/SensitivityPage";
+import { StressMatrixPage } from "./pages/StressMatrixPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/drafts" element={<DraftsPage />} />
             <Route path="/compare" element={<ComparisonPage />} />
             <Route path="/sensitivity" element={<SensitivityPage />} />
+            <Route path="/stress-matrix" element={<StressMatrixPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart2, Play, Bell, Database, FileCheck, GitCompare, TrendingUp } from "lucide-react";
+import { Activity, BarChart2, Play, Bell, Database, FileCheck, GitCompare, TrendingUp, Grid3x3 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const navItems = [
   { to: "/deals", icon: Database, label: "Deal Registry" },
   { to: "/health", icon: Activity, label: "Deal Health" },
   { to: "/portfolio", icon: BarChart2, label: "Portfolio Scoring" },
+  { to: "/stress-matrix", icon: Grid3x3, label: "Stress Matrix" },
   { to: "/scenarios", icon: Play, label: "Scenario Runner" },
   { to: "/compare", icon: GitCompare, label: "Comparison" },
   { to: "/sensitivity", icon: TrendingUp, label: "Sensitivity" },
