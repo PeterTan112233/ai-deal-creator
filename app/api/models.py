@@ -454,3 +454,27 @@ class TemplateSuiteResponse(BaseModel):
     audit_events_count: int
     is_mock: bool
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/analyze
+# ---------------------------------------------------------------------------
+
+class PortfolioAnalyzeRequest(BaseModel):
+    deal_inputs: List[Dict[str, Any]] = Field(min_length=1)
+    metrics: Optional[List[str]] = None
+    actor: str = "api"
+
+
+class PortfolioAnalyzeResponse(BaseModel):
+    portfolio_id: str
+    analysed_at: str
+    deal_count: int
+    deals: List[Dict[str, Any]]
+    aggregate: Dict[str, Any]
+    rankings: Dict[str, Any]
+    concentration: Dict[str, Any]
+    portfolio_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None

@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Portfolio analytics result
+    if "portfolio_id" in result and "concentration" in result:
+        if result.get("portfolio_report"):
+            lines.append(result["portfolio_report"])
+            return "\n".join(lines)
+
     # Template list result
     if "templates" in result and "total" in result:
         lines += [
@@ -315,6 +321,15 @@ def cmd_template_suite(args: argparse.Namespace) -> dict:
     )
 
 
+def cmd_portfolio(args: argparse.Namespace) -> dict:
+    """Run base-case analytics across multiple deals and return a portfolio summary."""
+    from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
+
+    deal_inputs = [_load_deal(f) for f in args.deal_files]
+    metrics = args.metrics.split(",") if getattr(args, "metrics", None) else None
+    return portfolio_analytics_workflow(deal_inputs, metrics=metrics, actor=args.actor)
+
+
 def cmd_templates(_args: argparse.Namespace) -> dict:
     """List all available scenario templates."""
     from app.services import scenario_template_service
@@ -402,6 +417,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("v1_file", help="Path to version-1 deal JSON file.")
     p.add_argument("v2_file", help="Path to version-2 deal JSON file.")
 
+    # ---- portfolio ----
+    p = subparsers.add_parser("portfolio", parents=[_globals],
+                              help="Cross-deal portfolio analytics (base-case per deal).")
+    p.add_argument("deal_files", nargs="+", help="Paths to deal JSON files.")
+    p.add_argument("--metrics", metavar="M1,M2,...",
+                   help="Comma-separated metrics to include in rankings.")
+
     # ---- templates ----
     p = subparsers.add_parser("templates", parents=[_globals],
                               help="List available scenario templates.")
@@ -446,6 +468,7 @@ _COMMAND_MAP = {
     "benchmark":      cmd_benchmark,
     "draft":          cmd_draft,
     "compare":        cmd_compare,
+    "portfolio":      cmd_portfolio,
     "templates":      cmd_templates,
     "template":       cmd_template,
     "template-suite": cmd_template_suite,
@@ -459,6 +482,10 @@ def main(argv=None) -> int:
     # Validate file existence
     if hasattr(args, "deal_file") and not os.path.exists(args.deal_file):
         _exit_error(f"Deal file not found: {args.deal_file}")
+    if hasattr(args, "deal_files"):
+        for f in args.deal_files:
+            if not os.path.exists(f):
+                _exit_error(f"Deal file not found: {f}")
     if hasattr(args, "v1_file") and not os.path.exists(args.v1_file):
         _exit_error(f"File not found: {args.v1_file}")
     if hasattr(args, "v2_file") and not os.path.exists(args.v2_file):

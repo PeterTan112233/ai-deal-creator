@@ -35,6 +35,8 @@ from fastapi import APIRouter, HTTPException
 from app.api.models import (
     AnalyzeRequest,
     AnalyzeResponse,
+    PortfolioAnalyzeRequest,
+    PortfolioAnalyzeResponse,
     ApplyApprovalRequest,
     BatchScenarioRequest,
     BatchScenarioResponse,
@@ -73,6 +75,7 @@ from app.api.models import (
 )
 from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
+from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
 from app.domain.structure import Structure
@@ -821,6 +824,41 @@ def run_template_suite(request: TemplateSuiteRequest):
         templates_run=result["templates_run"],
         results=result["results"],
         comparison_table=result["comparison_table"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/analyze
+# ---------------------------------------------------------------------------
+
+@router.post("/portfolio/analyze", response_model=PortfolioAnalyzeResponse,
+             tags=["portfolio"])
+def analyze_portfolio(request: PortfolioAnalyzeRequest):
+    """
+    Run base-case analytics across a list of deals and return an aggregated
+    portfolio summary: per-deal metrics, IRR/OC rankings, region/asset-class
+    concentration, and a formatted portfolio report.
+
+    All outputs are tagged [demo].
+    """
+    result = portfolio_analytics_workflow(
+        deal_inputs=request.deal_inputs,
+        metrics=request.metrics,
+        actor=request.actor,
+    )
+
+    return PortfolioAnalyzeResponse(
+        portfolio_id=result["portfolio_id"],
+        analysed_at=result["analysed_at"],
+        deal_count=result["deal_count"],
+        deals=result["deals"],
+        aggregate=result["aggregate"],
+        rankings=result["rankings"],
+        concentration=result["concentration"],
+        portfolio_report=result["portfolio_report"],
         audit_events_count=len(result.get("audit_events", [])),
         is_mock=result["is_mock"],
         error=result.get("error"),

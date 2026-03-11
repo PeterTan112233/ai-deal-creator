@@ -1328,3 +1328,75 @@ class TestTemplateSuite:
             "template_ids": ["base", "stress"],
         })
         assert resp.json()["audit_events_count"] >= 3
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/analyze
+# ---------------------------------------------------------------------------
+
+class TestPortfolioAnalyze:
+
+    def test_200_with_two_deals(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+        })
+        assert resp.status_code == 200
+
+    def test_response_has_required_fields(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input()],
+        })
+        data = resp.json()
+        for key in ("portfolio_id", "analysed_at", "deal_count", "deals",
+                    "aggregate", "rankings", "concentration",
+                    "portfolio_report", "audit_events_count", "is_mock", "error"):
+            assert key in data
+
+    def test_deal_count_matches_input(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+        })
+        assert resp.json()["deal_count"] == 2
+
+    def test_is_mock_true(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input()],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_aggregate_has_avg_irr(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+        })
+        assert "avg_equity_irr" in resp.json()["aggregate"]
+
+    def test_rankings_has_equity_irr(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+        })
+        assert "equity_irr" in resp.json()["rankings"]
+
+    def test_concentration_has_by_region(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input()],
+        })
+        assert "by_region" in resp.json()["concentration"]
+
+    def test_portfolio_report_contains_demo_tag(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input()],
+        })
+        assert "[demo]" in resp.json()["portfolio_report"]
+
+    def test_custom_metrics_filter(self):
+        resp = client.post("/portfolio/analyze", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+            "metrics": ["equity_irr"],
+        })
+        rankings = resp.json()["rankings"]
+        assert "equity_irr" in rankings
+        assert "oc_cushion_aaa" not in rankings
+
+    def test_422_on_empty_deal_inputs(self):
+        resp = client.post("/portfolio/analyze", json={"deal_inputs": []})
+        assert resp.status_code == 422
