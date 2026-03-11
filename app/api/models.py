@@ -478,3 +478,65 @@ class PortfolioAnalyzeResponse(BaseModel):
     audit_events_count: int
     is_mock: bool
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Watchlist CRUD  /  POST /watchlist/check
+# ---------------------------------------------------------------------------
+
+class WatchlistItemRequest(BaseModel):
+    metric: str
+    operator: str                     # lt, lte, gt, gte, eq
+    threshold: float
+    label: Optional[str] = None
+    deal_id: Optional[str] = None     # None = applies to all deals
+    severity: str = "warning"
+
+
+class WatchlistItemResponse(BaseModel):
+    item_id: str
+    metric: str
+    operator: str
+    threshold: float
+    label: str
+    deal_id: Optional[str]
+    severity: str
+    created_at: str
+    active: bool
+
+
+class WatchlistListResponse(BaseModel):
+    total: int
+    items: List[WatchlistItemResponse]
+
+
+class WatchlistCheckRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    actor: str = "api"
+
+
+class WatchlistCheckResponse(BaseModel):
+    deal_id: str
+    items_checked: int
+    triggered_count: int
+    alerts: List[Dict[str, Any]]
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# POST /deals/{deal_id}/pipeline  /  POST /deals/{deal_id}/analyze
+# ---------------------------------------------------------------------------
+
+class DealRerunRequest(BaseModel):
+    run_sensitivity: bool = False
+    run_optimizer: bool = True
+    run_benchmark: bool = True
+    run_draft: bool = True
+    actor: str = "api"
+
+
+class DealAnalyzeRequest(BaseModel):
+    run_sensitivity: bool = False
+    actor: str = "api"

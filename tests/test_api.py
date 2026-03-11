@@ -1400,3 +1400,174 @@ class TestPortfolioAnalyze:
     def test_422_on_empty_deal_inputs(self):
         resp = client.post("/portfolio/analyze", json={"deal_inputs": []})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Watchlist endpoints
+# ---------------------------------------------------------------------------
+
+class TestWatchlist:
+
+    def setup_method(self):
+        """Clear watchlist before each test."""
+        from app.services import watchlist_service
+        watchlist_service.clear()
+
+    def test_get_watchlist_empty(self):
+        resp = client.get("/watchlist")
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 0
+
+    def test_post_watchlist_creates_item(self):
+        resp = client.post("/watchlist", json={
+            "metric": "equity_irr",
+            "operator": "lt",
+            "threshold": 0.08,
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["metric"] == "equity_irr"
+        assert data["item_id"].startswith("wl-")
+
+    def test_get_watchlist_returns_created_items(self):
+        client.post("/watchlist", json={"metric": "equity_irr", "operator": "lt", "threshold": 0.08})
+        client.post("/watchlist", json={"metric": "wac", "operator": "gt", "threshold": 0.12})
+        resp = client.get("/watchlist")
+        assert resp.json()["total"] == 2
+
+    def test_delete_watchlist_item(self):
+        created = client.post("/watchlist", json={
+            "metric": "equity_irr", "operator": "lt", "threshold": 0.08,
+        }).json()
+        item_id = created["item_id"]
+        del_resp = client.delete(f"/watchlist/{item_id}")
+        assert del_resp.status_code == 200
+        assert del_resp.json()["deleted"] is True
+
+    def test_delete_nonexistent_returns_404(self):
+        resp = client.delete("/watchlist/nonexistent-id")
+        assert resp.status_code == 404
+
+    def test_post_watchlist_invalid_operator_returns_422(self):
+        resp = client.post("/watchlist", json={
+            "metric": "equity_irr", "operator": "INVALID", "threshold": 0.08,
+        })
+        assert resp.status_code == 422
+
+    def test_check_with_no_items(self):
+        resp = client.post("/watchlist/check", json={"deal_input": _batch_deal_input()})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["items_checked"] == 0
+        assert data["triggered_count"] == 0
+
+    def test_check_returns_triggered_alert(self):
+        # Add item that will always trigger (threshold > max possible IRR)
+        client.post("/watchlist", json={
+            "metric": "equity_irr", "operator": "lt", "threshold": 0.99,
+        })
+        resp = client.post("/watchlist/check", json={"deal_input": _batch_deal_input()})
+        data = resp.json()
+        assert data["triggered_count"] >= 1
+
+    def test_check_response_structure(self):
+        resp = client.post("/watchlist/check", json={"deal_input": _batch_deal_input()})
+        data = resp.json()
+        for key in ("deal_id", "items_checked", "triggered_count",
+                    "alerts", "audit_events_count", "is_mock", "error"):
+            assert key in data
+
+    def test_watchlist_filter_by_deal_id(self):
+        client.post("/watchlist", json={
+            "metric": "equity_irr", "operator": "lt", "threshold": 0.08,
+            "deal_id": "specific-deal",
+        })
+        # Global GET with no filter shows the item
+        resp = client.get("/watchlist")
+        assert resp.json()["total"] == 1
+        # Filtered GET for this deal also shows it
+        resp = client.get("/watchlist?deal_id=specific-deal")
+        assert resp.json()["total"] == 1
+        # Filtered GET for a different deal excludes it
+        resp = client.get("/watchlist?deal_id=other-deal")
+        assert resp.json()["total"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Registry re-run endpoints
+# ---------------------------------------------------------------------------
+
+class TestDealRerun:
+
+    def _register_deal(self, deal_id="rerun-test-001"):
+        """Create a deal via POST /deals and return the deal_id."""
+        resp = client.post("/deals", json={
+            "deal": {
+                "deal_id": deal_id,
+                "name": "Rerun Test CLO",
+                "issuer": "Rerun Issuer LLC",
+                "region": "US",
+                "currency": "USD",
+            },
+            "collateral": {
+                "collateral_id": f"coll-{deal_id}",
+                "pool_id": f"pool-{deal_id}",
+                "asset_class": "broadly_syndicated_loans",
+                "portfolio_size": 500_000_000,
+                "was": 0.042,
+                "warf": 2800.0,
+                "wal": 5.2,
+                "diversity_score": 60,
+                "ccc_bucket": 0.05,
+            },
+            "tranches": [
+                {"tranche_id": "t-aaa", "name": "AAA", "seniority": 1, "size_pct": 0.62},
+                {"tranche_id": "t-eq",  "name": "Equity", "seniority": 2, "size_pct": 0.10},
+            ],
+        })
+        return resp.json()["deal_id"]
+
+    def test_pipeline_rerun_200(self):
+        deal_id = self._register_deal()
+        resp = client.post(f"/deals/{deal_id}/pipeline", json={})
+        assert resp.status_code == 200
+
+    def test_pipeline_rerun_response_structure(self):
+        deal_id = self._register_deal()
+        resp = client.post(f"/deals/{deal_id}/pipeline", json={})
+        data = resp.json()
+        for key in ("pipeline_id", "deal_id", "run_at", "is_mock", "stages",
+                    "pipeline_summary", "audit_events_count"):
+            assert key in data
+
+    def test_pipeline_rerun_deal_id_correct(self):
+        deal_id = self._register_deal()
+        resp = client.post(f"/deals/{deal_id}/pipeline", json={})
+        assert resp.json()["deal_id"] == deal_id
+
+    def test_pipeline_rerun_404_unknown_deal(self):
+        resp = client.post("/deals/nonexistent-id/pipeline", json={})
+        assert resp.status_code == 404
+
+    def test_analyze_rerun_200(self):
+        deal_id = self._register_deal()
+        resp = client.post(f"/deals/{deal_id}/analyze", json={})
+        assert resp.status_code == 200
+
+    def test_analyze_rerun_response_structure(self):
+        deal_id = self._register_deal()
+        resp = client.post(f"/deals/{deal_id}/analyze", json={})
+        data = resp.json()
+        for key in ("deal_id", "analysis_id", "analysed_at", "is_mock",
+                    "key_metrics", "breakeven", "analytics_report"):
+            assert key in data
+
+    def test_analyze_rerun_404_unknown_deal(self):
+        resp = client.post("/deals/nonexistent-id/analyze", json={})
+        assert resp.status_code == 404
+
+    def test_pipeline_rerun_updates_registry(self):
+        deal_id = self._register_deal()
+        client.post(f"/deals/{deal_id}/pipeline", json={})
+        detail = client.get(f"/deals/{deal_id}").json()
+        assert detail["last_pipeline_at"] is not None

@@ -30,13 +30,21 @@ Phase 2+: set _MOCK_MODE = False in model_engine_service and
           portfolio_data_service — no router changes required.
 """
 
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import (
     AnalyzeRequest,
     AnalyzeResponse,
+    DealAnalyzeRequest,
+    DealRerunRequest,
     PortfolioAnalyzeRequest,
     PortfolioAnalyzeResponse,
+    WatchlistCheckRequest,
+    WatchlistCheckResponse,
+    WatchlistItemRequest,
+    WatchlistItemResponse,
+    WatchlistListResponse,
     ApplyApprovalRequest,
     BatchScenarioRequest,
     BatchScenarioResponse,
@@ -76,6 +84,8 @@ from app.api.models import (
 from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
+from app.services import watchlist_service
+from app.workflows.watchlist_workflow import watchlist_check_workflow
 from app.domain.collateral import Collateral
 from app.domain.deal import Deal
 from app.domain.structure import Structure
@@ -861,5 +871,157 @@ def analyze_portfolio(request: PortfolioAnalyzeRequest):
         portfolio_report=result["portfolio_report"],
         audit_events_count=len(result.get("audit_events", [])),
         is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET  /watchlist
+# POST /watchlist
+# DELETE /watchlist/{item_id}
+# POST /watchlist/check
+# ---------------------------------------------------------------------------
+
+@router.get("/watchlist", response_model=WatchlistListResponse, tags=["watchlist"])
+def list_watchlist(deal_id: Optional[str] = None):
+    """List all active watchlist items, optionally filtered to a specific deal."""
+    items = watchlist_service.list_items(deal_id=deal_id)
+    return WatchlistListResponse(
+        total=len(items),
+        items=[WatchlistItemResponse(**i) for i in items],
+    )
+
+
+@router.post("/watchlist", response_model=WatchlistItemResponse,
+             status_code=201, tags=["watchlist"])
+def create_watchlist_item(request: WatchlistItemRequest):
+    """
+    Add a metric threshold alert to the watchlist.
+
+    Operators: lt, lte, gt, gte, eq.
+    Severity:  warning (default) or critical.
+    deal_id:   if set, item only applies to that specific deal.
+    """
+    try:
+        item = watchlist_service.add_item(
+            metric=request.metric,
+            operator=request.operator,
+            threshold=request.threshold,
+            label=request.label,
+            deal_id=request.deal_id,
+            severity=request.severity,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return WatchlistItemResponse(**item)
+
+
+@router.delete("/watchlist/{item_id}", tags=["watchlist"])
+def delete_watchlist_item(item_id: str):
+    """Remove a watchlist item by ID."""
+    removed = watchlist_service.remove_item(item_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"Watchlist item '{item_id}' not found.")
+    return {"item_id": item_id, "deleted": True}
+
+
+@router.post("/watchlist/check", response_model=WatchlistCheckResponse, tags=["watchlist"])
+def check_watchlist(request: WatchlistCheckRequest):
+    """
+    Run the base-case scenario for a deal and evaluate all active watchlist items.
+
+    Returns an alert for every applicable item, with triggered=True/False
+    and the actual metric value that was compared.
+    """
+    result = watchlist_check_workflow(
+        deal_input=request.deal_input,
+        actor=request.actor,
+    )
+    return WatchlistCheckResponse(
+        deal_id=result["deal_id"],
+        items_checked=result["items_checked"],
+        triggered_count=result["triggered_count"],
+        alerts=result["alerts"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /deals/{deal_id}/pipeline
+# POST /deals/{deal_id}/analyze
+# ---------------------------------------------------------------------------
+
+@router.post("/deals/{deal_id}/pipeline", response_model=PipelineResponse,
+             tags=["deals"])
+def rerun_deal_pipeline(deal_id: str, request: DealRerunRequest):
+    """
+    Re-run the full analytics pipeline on a deal that's already in the registry.
+
+    Equivalent to POST /pipeline but looks the deal up from the registry
+    instead of requiring the full deal_input in the request body.
+    """
+    record = deal_registry_service.get(deal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deal '{deal_id}' not found in registry.")
+
+    deal_input = record.get("deal_input")
+    if not deal_input:
+        raise HTTPException(status_code=422, detail="Registered deal has no deal_input.")
+
+    result = full_pipeline_workflow(
+        deal_input,
+        run_sensitivity=False,
+        run_optimizer=request.run_optimizer,
+        run_benchmark=request.run_benchmark,
+        run_draft=request.run_draft,
+        actor=request.actor,
+    )
+    deal_registry_service.update_pipeline_result(deal_id, result)
+    return PipelineResponse(
+        pipeline_id=result["pipeline_id"],
+        deal_id=result["deal_id"],
+        run_at=result["run_at"],
+        is_mock=result["is_mock"],
+        stages=result["stages"],
+        pipeline_summary=result["pipeline_summary"],
+        audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+@router.post("/deals/{deal_id}/analyze", response_model=AnalyzeResponse,
+             tags=["deals"])
+def rerun_deal_analyze(deal_id: str, request: DealAnalyzeRequest):
+    """
+    Re-run deal analytics on a deal that's already in the registry.
+
+    Equivalent to POST /analyze but looks the deal up from the registry.
+    """
+    record = deal_registry_service.get(deal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deal '{deal_id}' not found in registry.")
+
+    deal_input = record.get("deal_input")
+    if not deal_input:
+        raise HTTPException(status_code=422, detail="Registered deal has no deal_input.")
+
+    result = deal_analytics_workflow(
+        deal_input,
+        run_sensitivity=request.run_sensitivity,
+        actor=request.actor,
+    )
+    return AnalyzeResponse(
+        deal_id=result["deal_id"],
+        analysis_id=result["analysis_id"],
+        analysed_at=result["analysed_at"],
+        is_mock=result["is_mock"],
+        key_metrics=result["key_metrics"],
+        breakeven=result["breakeven"],
+        summary_table=result["summary_table"],
+        analytics_report=result["analytics_report"],
+        scenarios_run=result["scenario_suite"].get("scenarios_run", 0),
+        audit_events_count=len(result.get("audit_events", [])),
         error=result.get("error"),
     )
