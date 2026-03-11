@@ -17,7 +17,8 @@ import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { sampleDeals } from "../lib/sampleDeals";
-import { Check, X, FileText, Send, ShieldCheck, ChevronRight } from "lucide-react";
+import { Check, X, FileText, Send, ShieldCheck, ChevronRight, Database } from "lucide-react";
+import { DealPickerModal } from "../components/DealPickerModal";
 
 // Step names
 const STEPS = [
@@ -87,6 +88,7 @@ export function DraftsPage() {
 
   // Step 1 state
   const [step, setStep] = useState<Step>(1);
+  const [showPicker, setShowPicker] = useState(false);
   const [dealJson, setDealJson] = useState(() =>
     preloaded ? JSON.stringify(preloaded, null, 2) : JSON.stringify(sampleDeals.usBSL, null, 2)
   );
@@ -222,6 +224,13 @@ export function DraftsPage() {
         <StepIndicator current={step} />
       </SectionCard>
 
+      {showPicker && (
+        <DealPickerModal
+          onSelect={(input) => setDealJson(JSON.stringify(input, null, 2))}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+
       {/* ── Step 1: Run Scenario ─────────────────────────────────────── */}
       <SectionCard
         title="Step 1 — Run Baseline Scenario"
@@ -261,7 +270,14 @@ export function DraftsPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs text-gray-600">Deal JSON</label>
-              <div className="flex gap-1.5">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowPicker(true)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+                >
+                  <Database size={12} /> Pick from Registry
+                </button>
+                <div className="flex gap-1.5">
                 {(["usBSL", "euCLO", "mmCLO"] as const).map((k) => (
                   <button
                     key={k}
@@ -271,6 +287,7 @@ export function DraftsPage() {
                     {k === "usBSL" ? "US BSL" : k === "euCLO" ? "EU CLO" : "MM CLO"}
                   </button>
                 ))}
+                </div>
               </div>
             </div>
             <textarea

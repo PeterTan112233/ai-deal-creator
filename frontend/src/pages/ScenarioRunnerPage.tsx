@@ -6,8 +6,9 @@ import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/Tabs";
+import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Database } from "lucide-react";
 
 const TYPE_COLORS: Record<string, "default" | "info" | "warning" | "danger"> = {
   base: "info",
@@ -47,6 +48,7 @@ export function ScenarioRunnerPage() {
   );
   const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showPicker, setShowPicker] = useState(false);
 
   const templatesQuery = useQuery({
     queryKey: ["scenario-templates"],
@@ -187,8 +189,25 @@ export function ScenarioRunnerPage() {
           </div>
         </SectionCard>
 
+        {showPicker && (
+          <DealPickerModal
+            onSelect={(input) => setJson(JSON.stringify(input, null, 2))}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+
         {/* Deal Input */}
-        <SectionCard title="Deal Input (JSON)">
+        <SectionCard
+          title="Deal Input (JSON)"
+          action={
+            <button
+              onClick={() => setShowPicker(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+            >
+              <Database size={12} /> Pick from Registry
+            </button>
+          }
+        >
           <textarea
             className="w-full h-72 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
             value={json}

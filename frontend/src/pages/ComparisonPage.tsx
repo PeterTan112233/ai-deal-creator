@@ -4,8 +4,9 @@ import { compareDeals, runScenarioSimple, type FieldChange } from "../api/analyt
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
-import { ArrowUp, ArrowDown, Minus, GitCompare } from "lucide-react";
+import { ArrowUp, ArrowDown, GitCompare, Database } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ export function ComparisonPage() {
   const [json2, setJson2] = useState(() => JSON.stringify(sampleDeals.euCLO, null, 2));
   const [runScenarios, setRunScenarios] = useState(true);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [picker, setPicker] = useState<"v1" | "v2" | null>(null);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -140,26 +142,45 @@ export function ComparisonPage() {
         </p>
       </div>
 
+      {picker && (
+        <DealPickerModal
+          title={`Pick ${picker === "v1" ? "Deal V1" : "Deal V2"}`}
+          onSelect={(input) => {
+            if (picker === "v1") setJson1(JSON.stringify(input, null, 2));
+            else setJson2(JSON.stringify(input, null, 2));
+          }}
+          onClose={() => setPicker(null)}
+        />
+      )}
+
       {/* Two JSON panels */}
       <div className="grid grid-cols-2 gap-5">
-        {[
-          { label: "Deal V1", json: json1, setJson: setJson1 },
-          { label: "Deal V2", json: json2, setJson: setJson2 },
-        ].map(({ label, json, setJson }) => (
+        {([
+          { label: "Deal V1", json: json1, setJson: setJson1, pickerId: "v1" as const },
+          { label: "Deal V2", json: json2, setJson: setJson2, pickerId: "v2" as const },
+        ] as const).map(({ label, json, setJson, pickerId }) => (
           <SectionCard
             key={label}
             title={label}
             action={
-              <div className="flex gap-1">
-                {SAMPLES.map((k) => (
-                  <button
-                    key={k}
-                    onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
-                    className="text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 border border-gray-200 rounded"
-                  >
-                    {sampleLabel(k)}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPicker(pickerId)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+                >
+                  <Database size={12} /> Registry
+                </button>
+                <div className="flex gap-1">
+                  {SAMPLES.map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
+                      className="text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 border border-gray-200 rounded"
+                    >
+                      {sampleLabel(k)}
+                    </button>
+                  ))}
+                </div>
               </div>
             }
           >

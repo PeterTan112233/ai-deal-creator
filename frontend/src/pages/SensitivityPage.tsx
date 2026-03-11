@@ -15,8 +15,9 @@ import { runSensitivity, type SensitivityPoint } from "../api/analytics";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Database } from "lucide-react";
 
 // ─── Parameter presets ────────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ export function SensitivityPage() {
   const [paramKey, setParamKey] = useState("default_rate");
   const [valuesStr, setValuesStr] = useState("0.01,0.02,0.03,0.04,0.05,0.06,0.08,0.10");
   const [parseError, setParseError] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const param = PARAMETERS.find((p) => p.key === paramKey) ?? PARAMETERS[0];
 
@@ -222,20 +224,35 @@ export function SensitivityPage() {
           </div>
         </SectionCard>
 
+        {showPicker && (
+          <DealPickerModal
+            onSelect={(input) => setJson(JSON.stringify(input, null, 2))}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+
         {/* Deal input */}
         <SectionCard
           title="Deal Input (JSON)"
           action={
-            <div className="flex gap-1">
-              {(["usBSL", "euCLO", "mmCLO"] as const).map((k) => (
-                <button
-                  key={k}
-                  onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
-                  className="text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 border border-gray-200 rounded"
-                >
-                  {k === "usBSL" ? "US BSL" : k === "euCLO" ? "EU CLO" : "MM CLO"}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowPicker(true)}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+              >
+                <Database size={12} /> Registry
+              </button>
+              <div className="flex gap-1">
+                {(["usBSL", "euCLO", "mmCLO"] as const).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setJson(JSON.stringify(sampleDeals[k], null, 2))}
+                    className="text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 border border-gray-200 rounded"
+                  >
+                    {k === "usBSL" ? "US BSL" : k === "euCLO" ? "EU CLO" : "MM CLO"}
+                  </button>
+                ))}
+              </div>
             </div>
           }
         >

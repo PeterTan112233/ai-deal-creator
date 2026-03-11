@@ -16,7 +16,9 @@ import { KRIBadge } from "../components/KRIBadge";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
+import { Database } from "lucide-react";
 
 // Format a KRI value using the backend's `format` hint
 function fmtKRI(kri: KRI): string {
@@ -42,6 +44,7 @@ export function HealthCheckPage() {
       : JSON.stringify(sampleDeals.usBSL, null, 2)
   );
   const [parseError, setParseError] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => runHealthCheck(input),
@@ -99,8 +102,25 @@ export function HealthCheckPage() {
         </p>
       </div>
 
+      {showPicker && (
+        <DealPickerModal
+          onSelect={(input) => setJson(JSON.stringify(input, null, 2))}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+
       {/* Input */}
-      <SectionCard title="Deal Input (JSON)">
+      <SectionCard
+        title="Deal Input (JSON)"
+        action={
+          <button
+            onClick={() => setShowPicker(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+          >
+            <Database size={12} /> Pick from Registry
+          </button>
+        }
+      >
         <textarea
           className="w-full h-56 font-mono text-xs border border-gray-200 rounded p-3 resize-y focus:outline-none focus:ring-2 focus:ring-gray-900"
           value={json}
