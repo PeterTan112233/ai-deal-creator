@@ -1719,3 +1719,205 @@ class TestScoring:
     def test_score_from_registry_404_unknown(self):
         resp = client.post("/deals/nonexistent-id/score", json={})
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/score
+# ---------------------------------------------------------------------------
+
+class TestPortfolioScoring:
+
+    def _two_deals(self):
+        return [_batch_deal_input(), _batch_deal_input()]
+
+    def test_200_with_two_deals(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        assert resp.status_code == 200
+
+    def test_response_structure(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        data = resp.json()
+        for key in (
+            "scorecard_id", "run_at", "deal_count", "scored_count",
+            "deals", "score_ranking", "grade_distribution",
+            "portfolio_avg_score", "needs_attention",
+            "scorecard_report", "audit_events_count", "is_mock", "error",
+        ):
+            assert key in data, f"Missing key: {key}"
+
+    def test_deal_count_matches_input(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        assert resp.json()["deal_count"] == 2
+
+    def test_scored_count_positive(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        assert resp.json()["scored_count"] > 0
+
+    def test_grade_distribution_has_grades(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        gd = resp.json()["grade_distribution"]
+        for g in ("A", "B", "C", "D"):
+            assert g in gd
+
+    def test_score_ranking_sorted(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        scores = [e["composite_score"] for e in resp.json()["score_ranking"]]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_scorecard_report_has_demo_tag(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        assert "[demo]" in resp.json()["scorecard_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": self._two_deals()})
+        assert resp.json()["is_mock"] is True
+
+    def test_422_on_empty_deal_inputs(self):
+        resp = client.post("/portfolio/score", json={"deal_inputs": []})
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/stress-matrix
+# ---------------------------------------------------------------------------
+
+class TestStressMatrix:
+
+    def _two_deals(self):
+        return [_batch_deal_input(), _batch_deal_input()]
+
+    def test_200_two_deals_two_templates(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": self._two_deals(),
+            "template_ids": ["base", "stress"],
+        })
+        assert resp.status_code == 200
+
+    def test_response_has_required_fields(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        data = resp.json()
+        for key in ("matrix_id", "run_at", "deal_count", "template_count",
+                    "cells", "deal_summaries", "template_summaries",
+                    "matrix_report", "audit_events_count", "is_mock", "error"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_cell_count_is_deal_times_template(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": self._two_deals(),
+            "template_ids": ["base", "stress"],
+        })
+        data = resp.json()
+        assert len(data["cells"]) == data["deal_count"] * data["template_count"]
+
+    def test_deal_summaries_count(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": self._two_deals(),
+            "template_ids": ["stress"],
+        })
+        assert len(resp.json()["deal_summaries"]) == 2
+
+    def test_template_summaries_count(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["base", "stress", "deep-stress"],
+        })
+        data = resp.json()
+        assert len(data["template_summaries"]) == data["template_count"]
+
+    def test_matrix_report_has_demo_tag(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert "[demo]" in resp.json()["matrix_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/portfolio/stress-matrix", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_422_on_empty_deal_inputs(self):
+        resp = client.post("/portfolio/stress-matrix", json={"deal_inputs": []})
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /health-check  /  POST /deals/{deal_id}/health-check
+# ---------------------------------------------------------------------------
+
+class TestHealthCheck:
+
+    def test_200_with_deal_input(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        assert resp.status_code == 200
+
+    def test_response_has_required_fields(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        data = resp.json()
+        for key in (
+            "health_id", "deal_id", "checked_at", "overall_grade", "overall_score",
+            "score_summary", "stress_summary", "watchlist_summary",
+            "key_risk_indicators", "action_items",
+            "health_report", "audit_events_count", "is_mock", "error",
+        ):
+            assert key in data, f"Missing key: {key}"
+
+    def test_overall_grade_valid(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        assert resp.json()["overall_grade"] in ("A", "B", "C", "D")
+
+    def test_kris_has_six_entries(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        kris = resp.json()["key_risk_indicators"]
+        assert len(kris) == 6
+
+    def test_action_items_non_empty(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        assert len(resp.json()["action_items"]) >= 1
+
+    def test_health_report_has_demo_tag(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        assert "[demo]" in resp.json()["health_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/health-check", json={"deal_input": _batch_deal_input()})
+        assert resp.json()["is_mock"] is True
+
+    def test_health_check_from_registry(self):
+        create_resp = client.post("/deals", json={
+            "deal": {
+                "deal_id": "health-reg-001",
+                "name": "Health Registry CLO",
+                "issuer": "Health Issuer LLC",
+                "region": "US",
+                "currency": "USD",
+            },
+            "collateral": {
+                "collateral_id": "coll-health-001",
+                "pool_id": "pool-health-001",
+                "asset_class": "broadly_syndicated_loans",
+                "portfolio_size": 500_000_000,
+                "was": 0.042,
+                "warf": 2800.0,
+                "wal": 5.2,
+                "diversity_score": 60,
+                "ccc_bucket": 0.05,
+            },
+            "tranches": [
+                {"tranche_id": "t-aaa", "name": "AAA", "seniority": 1, "size_pct": 0.62},
+                {"tranche_id": "t-eq", "name": "Equity", "seniority": 2, "size_pct": 0.10},
+            ],
+        })
+        deal_id = create_resp.json()["deal_id"]
+        resp = client.post(f"/deals/{deal_id}/health-check", json={})
+        assert resp.status_code == 200
+        assert resp.json()["deal_id"] == deal_id
+
+    def test_health_check_from_registry_404(self):
+        resp = client.post("/deals/nonexistent-health/health-check", json={})
+        assert resp.status_code == 404
