@@ -1571,3 +1571,74 @@ class TestDealRerun:
         client.post(f"/deals/{deal_id}/pipeline", json={})
         detail = client.get(f"/deals/{deal_id}").json()
         assert detail["last_pipeline_at"] is not None
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/stress-test
+# ---------------------------------------------------------------------------
+
+class TestPortfolioStress:
+
+    def test_200_two_deals(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+            "template_ids": ["base", "stress"],
+        })
+        assert resp.status_code == 200
+
+    def test_response_has_required_fields(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        data = resp.json()
+        for key in ("stress_id", "run_at", "deal_count", "template_count",
+                    "deals", "risk_ranking", "most_sensitive_template",
+                    "portfolio_report", "audit_events_count", "is_mock", "error"):
+            assert key in data
+
+    def test_deal_count_matches(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert resp.json()["deal_count"] == 2
+
+    def test_risk_ranking_populated(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input(), _batch_deal_input()],
+            "template_ids": ["stress", "deep-stress"],
+        })
+        assert len(resp.json()["risk_ranking"]) == 2
+
+    def test_most_sensitive_template_present(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert resp.json()["most_sensitive_template"] is not None
+
+    def test_portfolio_report_has_demo_tag(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert "[demo]" in resp.json()["portfolio_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input()],
+            "template_ids": ["stress"],
+        })
+        assert resp.json()["is_mock"] is True
+
+    def test_scenario_type_filter(self):
+        resp = client.post("/portfolio/stress-test", json={
+            "deal_inputs": [_batch_deal_input()],
+            "scenario_type": "stress",
+        })
+        assert resp.status_code == 200
+
+    def test_422_on_empty_deal_inputs(self):
+        resp = client.post("/portfolio/stress-test", json={"deal_inputs": []})
+        assert resp.status_code == 422

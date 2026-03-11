@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Portfolio stress result
+    if "stress_id" in result and "risk_ranking" in result:
+        if result.get("portfolio_report"):
+            lines.append(result["portfolio_report"])
+            return "\n".join(lines)
+
     # Portfolio analytics result
     if "portfolio_id" in result and "concentration" in result:
         if result.get("portfolio_report"):
@@ -321,6 +327,21 @@ def cmd_template_suite(args: argparse.Namespace) -> dict:
     )
 
 
+def cmd_portfolio_stress(args: argparse.Namespace) -> dict:
+    """Run stress template battery across multiple deals, rank by vulnerability."""
+    from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
+
+    deal_inputs = [_load_deal(f) for f in args.deal_files]
+    template_ids = args.templates.split(",") if getattr(args, "templates", None) else None
+    return portfolio_stress_workflow(
+        deal_inputs,
+        template_ids=template_ids,
+        scenario_type=getattr(args, "scenario_type", None),
+        tag=getattr(args, "tag", None),
+        actor=args.actor,
+    )
+
+
 def cmd_portfolio(args: argparse.Namespace) -> dict:
     """Run base-case analytics across multiple deals and return a portfolio summary."""
     from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
@@ -417,6 +438,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("v1_file", help="Path to version-1 deal JSON file.")
     p.add_argument("v2_file", help="Path to version-2 deal JSON file.")
 
+    # ---- portfolio-stress ----
+    p = subparsers.add_parser("portfolio-stress", parents=[_globals],
+                              help="Run stress template battery across multiple deals.")
+    p.add_argument("deal_files", nargs="+", help="Paths to deal JSON files.")
+    p.add_argument("--templates", metavar="ID1,ID2,...",
+                   help="Comma-separated template IDs (default: all stress templates).")
+    p.add_argument("--scenario-type", help="Filter templates by type.")
+    p.add_argument("--tag", help="Filter templates by tag.")
+
     # ---- portfolio ----
     p = subparsers.add_parser("portfolio", parents=[_globals],
                               help="Cross-deal portfolio analytics (base-case per deal).")
@@ -462,16 +492,17 @@ def _add_aaa_args(p: argparse.ArgumentParser) -> None:
 # ---------------------------------------------------------------------------
 
 _COMMAND_MAP = {
-    "pipeline":       cmd_pipeline,
-    "analyze":        cmd_analyze,
-    "optimize":       cmd_optimize,
-    "benchmark":      cmd_benchmark,
-    "draft":          cmd_draft,
-    "compare":        cmd_compare,
-    "portfolio":      cmd_portfolio,
-    "templates":      cmd_templates,
-    "template":       cmd_template,
-    "template-suite": cmd_template_suite,
+    "pipeline":          cmd_pipeline,
+    "analyze":           cmd_analyze,
+    "optimize":          cmd_optimize,
+    "benchmark":         cmd_benchmark,
+    "draft":             cmd_draft,
+    "compare":           cmd_compare,
+    "portfolio":         cmd_portfolio,
+    "portfolio-stress":  cmd_portfolio_stress,
+    "templates":         cmd_templates,
+    "template":          cmd_template,
+    "template-suite":    cmd_template_suite,
 }
 
 

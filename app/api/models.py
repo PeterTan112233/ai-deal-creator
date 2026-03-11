@@ -540,3 +540,29 @@ class DealRerunRequest(BaseModel):
 class DealAnalyzeRequest(BaseModel):
     run_sensitivity: bool = False
     actor: str = "api"
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/stress-test
+# ---------------------------------------------------------------------------
+
+class PortfolioStressRequest(BaseModel):
+    deal_inputs: List[Dict[str, Any]] = Field(min_length=1)
+    template_ids: Optional[List[str]] = None
+    scenario_type: Optional[str] = None
+    tag: Optional[str] = None
+    actor: str = "api"
+
+
+class PortfolioStressResponse(BaseModel):
+    stress_id: str
+    run_at: str
+    deal_count: int
+    template_count: int
+    deals: List[Dict[str, Any]]
+    risk_ranking: List[Dict[str, Any]]
+    most_sensitive_template: Optional[str]
+    portfolio_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None

@@ -40,6 +40,8 @@ from app.api.models import (
     DealRerunRequest,
     PortfolioAnalyzeRequest,
     PortfolioAnalyzeResponse,
+    PortfolioStressRequest,
+    PortfolioStressResponse,
     WatchlistCheckRequest,
     WatchlistCheckResponse,
     WatchlistItemRequest,
@@ -84,6 +86,7 @@ from app.api.models import (
 from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
+from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
 from app.services import watchlist_service
 from app.workflows.watchlist_workflow import watchlist_check_workflow
 from app.domain.collateral import Collateral
@@ -1023,5 +1026,52 @@ def rerun_deal_analyze(deal_id: str, request: DealAnalyzeRequest):
         analytics_report=result["analytics_report"],
         scenarios_run=result["scenario_suite"].get("scenarios_run", 0),
         audit_events_count=len(result.get("audit_events", [])),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/stress-test
+# ---------------------------------------------------------------------------
+
+@router.post("/portfolio/stress-test", response_model=PortfolioStressResponse,
+             tags=["portfolio"])
+def stress_test_portfolio(request: PortfolioStressRequest):
+    """
+    Run a named stress scenario template battery across a list of deals.
+
+    For each deal, computes:
+      - base-case IRR (reference)
+      - worst-case IRR across all applied templates
+      - IRR drawdown (base minus worst-case)
+
+    Returns a risk ranking (most vulnerable deal first) and identifies
+    the template that causes the greatest average IRR damage across the
+    portfolio.
+
+    All outputs are tagged [demo].
+    """
+    result = portfolio_stress_workflow(
+        deal_inputs=request.deal_inputs,
+        template_ids=request.template_ids,
+        scenario_type=request.scenario_type,
+        tag=request.tag,
+        actor=request.actor,
+    )
+
+    if result.get("error") and result["deal_count"] == 0:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return PortfolioStressResponse(
+        stress_id=result["stress_id"],
+        run_at=result["run_at"],
+        deal_count=result["deal_count"],
+        template_count=result["template_count"],
+        deals=result["deals"],
+        risk_ranking=result["risk_ranking"],
+        most_sensitive_template=result["most_sensitive_template"],
+        portfolio_report=result["portfolio_report"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
         error=result.get("error"),
     )
