@@ -597,6 +597,32 @@ class PortfolioScoringResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /portfolio/stress-matrix
+# ---------------------------------------------------------------------------
+
+class StressMatrixRequest(BaseModel):
+    deal_inputs: List[Dict[str, Any]] = Field(min_length=1)
+    template_ids: Optional[List[str]] = None
+    scenario_type: Optional[str] = None
+    tag: Optional[str] = None
+    actor: str = "api"
+
+
+class StressMatrixResponse(BaseModel):
+    matrix_id: str
+    run_at: str
+    deal_count: int
+    template_count: int
+    cells: List[Dict[str, Any]]
+    deal_summaries: List[Dict[str, Any]]
+    template_summaries: List[Dict[str, Any]]
+    matrix_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /portfolio/stress-test
 # ---------------------------------------------------------------------------
 

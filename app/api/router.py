@@ -43,6 +43,8 @@ from app.api.models import (
     PortfolioAnalyzeResponse,
     PortfolioScoringRequest,
     PortfolioScoringResponse,
+    StressMatrixRequest,
+    StressMatrixResponse,
     PortfolioStressRequest,
     PortfolioStressResponse,
     ScoringRequest,
@@ -92,6 +94,7 @@ from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
 from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
+from app.workflows.stress_matrix_workflow import stress_matrix_workflow
 from app.workflows.portfolio_scoring_workflow import portfolio_scoring_workflow as _portfolio_scoring_workflow
 from app.workflows.deal_scoring_workflow import deal_scoring_workflow
 from app.services import watchlist_service
@@ -1078,6 +1081,48 @@ def stress_test_portfolio(request: PortfolioStressRequest):
         risk_ranking=result["risk_ranking"],
         most_sensitive_template=result["most_sensitive_template"],
         portfolio_report=result["portfolio_report"],
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /portfolio/stress-matrix
+# ---------------------------------------------------------------------------
+
+@router.post("/portfolio/stress-matrix", response_model=StressMatrixResponse,
+             tags=["portfolio"])
+def stress_matrix_portfolio(request: StressMatrixRequest):
+    """
+    Run a full stress template matrix across a list of deals.
+
+    Returns a 2-D grid of (equity_irr, oc_cushion) for every (deal, template)
+    pair, with per-deal and per-template aggregations showing which deals are
+    most vulnerable and which templates cause the most damage.
+
+    All outputs are tagged [demo].
+    """
+    result = stress_matrix_workflow(
+        deal_inputs=request.deal_inputs,
+        template_ids=request.template_ids,
+        scenario_type=request.scenario_type,
+        tag=request.tag,
+        actor=request.actor,
+    )
+
+    if result.get("error") and result["deal_count"] == 0:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return StressMatrixResponse(
+        matrix_id=result["matrix_id"],
+        run_at=result["run_at"],
+        deal_count=result["deal_count"],
+        template_count=result["template_count"],
+        cells=result["cells"],
+        deal_summaries=result["deal_summaries"],
+        template_summaries=result["template_summaries"],
+        matrix_report=result["matrix_report"],
         audit_events_count=len(result.get("audit_events", [])),
         is_mock=result["is_mock"],
         error=result.get("error"),

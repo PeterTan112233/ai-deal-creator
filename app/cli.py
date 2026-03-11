@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Stress matrix result
+    if "matrix_id" in result and "cells" in result:
+        if result.get("matrix_report"):
+            lines.append(result["matrix_report"])
+            return "\n".join(lines)
+
     # Portfolio scoring result
     if "scorecard_id" in result and "score_ranking" in result:
         if result.get("scorecard_report"):
@@ -354,6 +360,21 @@ def cmd_portfolio_score(args: argparse.Namespace) -> dict:
     return portfolio_scoring_workflow(deal_inputs, actor=args.actor)
 
 
+def cmd_stress_matrix(args: argparse.Namespace) -> dict:
+    """Run an N×M stress template matrix across multiple deals."""
+    from app.workflows.stress_matrix_workflow import stress_matrix_workflow
+
+    deal_inputs = [_load_deal(f) for f in args.deal_files]
+    template_ids = args.templates.split(",") if getattr(args, "templates", None) else None
+    return stress_matrix_workflow(
+        deal_inputs,
+        template_ids=template_ids,
+        scenario_type=getattr(args, "scenario_type", None),
+        tag=getattr(args, "tag", None),
+        actor=args.actor,
+    )
+
+
 def cmd_portfolio_stress(args: argparse.Namespace) -> dict:
     """Run stress template battery across multiple deals, rank by vulnerability."""
     from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
@@ -470,6 +491,15 @@ def _build_parser() -> argparse.ArgumentParser:
                               help="Score a deal on a 0-100 composite scale (A-D grade).")
     p.add_argument("deal_file", help="Path to deal JSON file.")
 
+    # ---- stress-matrix ----
+    p = subparsers.add_parser("stress-matrix", parents=[_globals],
+                              help="N×M stress template matrix across deals.")
+    p.add_argument("deal_files", nargs="+", help="Paths to deal JSON files.")
+    p.add_argument("--templates", metavar="ID1,ID2,...",
+                   help="Comma-separated template IDs (default: all stress templates).")
+    p.add_argument("--scenario-type", help="Filter templates by type.")
+    p.add_argument("--tag", help="Filter templates by tag.")
+
     # ---- portfolio-score ----
     p = subparsers.add_parser("portfolio-score", parents=[_globals],
                               help="Score every deal in a portfolio (A-D grades, 0-100).")
@@ -537,6 +567,7 @@ _COMMAND_MAP = {
     "compare":           cmd_compare,
     "score":             cmd_score,
     "portfolio":         cmd_portfolio,
+    "stress-matrix":     cmd_stress_matrix,
     "portfolio-score":   cmd_portfolio_score,
     "portfolio-stress":  cmd_portfolio_stress,
     "templates":         cmd_templates,
