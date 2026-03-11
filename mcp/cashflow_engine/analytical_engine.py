@@ -100,6 +100,9 @@ def _compute(
     portfolio_size   = float(deal_payload.get("portfolio_size", 500_000_000))
     was              = float(deal_payload.get("was", 0.042))
     wal              = float(deal_payload.get("wal", 5.2))
+    diversity_score  = float(deal_payload.get("diversity_score", 75))
+    ccc_bucket       = float(deal_payload.get("ccc_bucket", 0.04))
+    warf             = float(deal_payload.get("warf", 2850))
     tranches: List[Dict] = deal_payload.get("tranches", [])
 
     # ---- Scenario inputs ---------------------------------------------------
@@ -107,6 +110,23 @@ def _compute(
     recovery_rate     = float(scenario_payload.get("recovery_rate",  0.650))
     spread_shock_bps  = float(scenario_payload.get("spread_shock_bps", 0.0))
     prepayment_rate   = float(scenario_payload.get("prepayment_rate", 0.20))
+
+    # ---- Pool quality adjustments ------------------------------------------
+    # WARF: higher rating factor → higher implied default stress.
+    # Benchmark WARF 2850 ≈ B+/BB-; each 100 points adds ~0.7bps annual CDR.
+    warf_default_adj = (warf - 2850) * 0.000007
+
+    # CCC bucket: loans in excess of the 7.5% OC-test threshold get a 50%
+    # haircut in coverage tests, reducing distributable excess spread.
+    CCC_TRIGGER = 0.075
+    ccc_excess_haircut = max(0.0, ccc_bucket - CCC_TRIGGER) * 0.50 * portfolio_size * was
+
+    # Diversity: below 60 obligors, concentration adds correlated-default risk.
+    # Each point below 60 adds ~0.5bps incremental CDR.
+    div_default_adj = max(0.0, (60 - diversity_score)) * 0.000005
+
+    # Effective default rate for this run (scenario can override any of these)
+    effective_default_rate = default_rate + warf_default_adj + div_default_adj
 
     # Spread shock tightens pool coupon (adverse scenario = spread compression)
     was_adj = was - spread_shock_bps / 10_000
@@ -116,7 +136,7 @@ def _compute(
     pool_income        = portfolio_size * pool_coupon
     # Interest shortfall: defaulted loans stop paying interest
     # (principal loss is captured separately in terminal equity erosion)
-    interest_shortfall = portfolio_size * default_rate * pool_coupon
+    interest_shortfall = portfolio_size * effective_default_rate * pool_coupon
     fees               = portfolio_size * TOTAL_FEE_RATE
 
     # ---- Tranche stack -----------------------------------------------------
@@ -148,8 +168,8 @@ def _compute(
 
     # ---- Excess spread -----------------------------------------------------
     # Distributable income = pool income minus interest shortfall from defaults,
-    # debt service, and fees. Principal losses flow through to terminal equity.
-    excess_spread = (pool_income - interest_shortfall) - total_debt_cost - fees
+    # debt service, fees, and CCC OC-test haircut on excess CCC concentration.
+    excess_spread = (pool_income - interest_shortfall) - total_debt_cost - fees - ccc_excess_haircut
 
     # ---- Senior (AAA) tranche metrics -------------------------------------
     aaa = next((t for t in sorted_tranches if t.get("seniority") == 1), None)
@@ -169,7 +189,7 @@ def _compute(
 
     # Cumulative principal loss to the pool over WAL (net of recovery)
     # Equity absorbs first losses; residual principal is returned at maturity.
-    total_pool_principal_loss = default_rate * wal * (1 - recovery_rate) * portfolio_size
+    total_pool_principal_loss = effective_default_rate * wal * (1 - recovery_rate) * portfolio_size
     terminal_equity = max(0.0, equity_abs - total_pool_principal_loss)
 
     equity_irr = _solve_irr(equity_abs, equity_cf_annual, terminal_equity, wal)

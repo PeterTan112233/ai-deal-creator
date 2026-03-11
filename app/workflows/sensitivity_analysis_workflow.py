@@ -121,6 +121,10 @@ def sensitivity_analysis_workflow(
         "tranches":        deal_input.get("liabilities", []),
     }
 
+    # Fields that live in deal_payload (collateral-level), not scenario params.
+    # When one of these is swept, override deal_payload per iteration.
+    _DEAL_PAYLOAD_FIELDS = {"was", "wal", "portfolio_size", "diversity_score", "ccc_bucket", "warf"}
+
     # ------------------------------------------------------------------
     # Step 3: Run engine for each value
     # ------------------------------------------------------------------
@@ -128,7 +132,12 @@ def sensitivity_analysis_workflow(
 
     for val in values:
         params = dict(fixed_params)
-        params[parameter] = val
+        # Collateral fields go into deal_payload; scenario fields go into params
+        if parameter in _DEAL_PAYLOAD_FIELDS:
+            iter_deal_payload = {**deal_payload, parameter: val}
+        else:
+            params[parameter] = val
+            iter_deal_payload = deal_payload
 
         scenario_request = {
             "scenario_id":   f"sc-{deal_id}-{uuid.uuid4().hex[:6]}",
@@ -136,7 +145,7 @@ def sensitivity_analysis_workflow(
             "name":          f"{parameter}={val}",
             "scenario_type": "sensitivity",
             "parameters":    params,
-            "deal_payload":  deal_payload,
+            "deal_payload":  iter_deal_payload,
         }
 
         try:
