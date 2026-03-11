@@ -597,6 +597,36 @@ class PortfolioScoringResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /health-check  /  POST /deals/{deal_id}/health-check
+# ---------------------------------------------------------------------------
+
+class HealthCheckRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    actor: str = "api"
+
+
+class DealHealthCheckRequest(BaseModel):
+    actor: str = "api"
+
+
+class HealthCheckResponse(BaseModel):
+    health_id: str
+    deal_id: str
+    checked_at: str
+    overall_grade: Optional[str]
+    overall_score: Optional[float]
+    score_summary: Dict[str, Any]
+    stress_summary: Dict[str, Any]
+    watchlist_summary: Dict[str, Any]
+    key_risk_indicators: List[Dict[str, Any]]
+    action_items: List[str]
+    health_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /portfolio/stress-matrix
 # ---------------------------------------------------------------------------
 

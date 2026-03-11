@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Health check result
+    if "health_id" in result and "key_risk_indicators" in result:
+        if result.get("health_report"):
+            lines.append(result["health_report"])
+            return "\n".join(lines)
+
     # Stress matrix result
     if "matrix_id" in result and "cells" in result:
         if result.get("matrix_report"):
@@ -360,6 +366,13 @@ def cmd_portfolio_score(args: argparse.Namespace) -> dict:
     return portfolio_scoring_workflow(deal_inputs, actor=args.actor)
 
 
+def cmd_health(args: argparse.Namespace) -> dict:
+    """Run a unified health check: scoring + stress + watchlist + KRIs."""
+    from app.workflows.deal_health_workflow import deal_health_workflow
+    deal = _load_deal(args.deal_file)
+    return deal_health_workflow(deal, actor=args.actor)
+
+
 def cmd_stress_matrix(args: argparse.Namespace) -> dict:
     """Run an N×M stress template matrix across multiple deals."""
     from app.workflows.stress_matrix_workflow import stress_matrix_workflow
@@ -491,6 +504,11 @@ def _build_parser() -> argparse.ArgumentParser:
                               help="Score a deal on a 0-100 composite scale (A-D grade).")
     p.add_argument("deal_file", help="Path to deal JSON file.")
 
+    # ---- health ----
+    p = subparsers.add_parser("health", parents=[_globals],
+                              help="Unified health check: scoring + stress + watchlist KRIs.")
+    p.add_argument("deal_file", help="Path to deal JSON file.")
+
     # ---- stress-matrix ----
     p = subparsers.add_parser("stress-matrix", parents=[_globals],
                               help="N×M stress template matrix across deals.")
@@ -567,6 +585,7 @@ _COMMAND_MAP = {
     "compare":           cmd_compare,
     "score":             cmd_score,
     "portfolio":         cmd_portfolio,
+    "health":            cmd_health,
     "stress-matrix":     cmd_stress_matrix,
     "portfolio-score":   cmd_portfolio_score,
     "portfolio-stress":  cmd_portfolio_stress,

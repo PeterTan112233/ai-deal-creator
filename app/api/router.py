@@ -41,6 +41,9 @@ from app.api.models import (
     DealScoringRequest,
     PortfolioAnalyzeRequest,
     PortfolioAnalyzeResponse,
+    HealthCheckRequest,
+    DealHealthCheckRequest,
+    HealthCheckResponse,
     PortfolioScoringRequest,
     PortfolioScoringResponse,
     StressMatrixRequest,
@@ -95,6 +98,7 @@ from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
 from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
 from app.workflows.stress_matrix_workflow import stress_matrix_workflow
+from app.workflows.deal_health_workflow import deal_health_workflow
 from app.workflows.portfolio_scoring_workflow import portfolio_scoring_workflow as _portfolio_scoring_workflow
 from app.workflows.deal_scoring_workflow import deal_scoring_workflow
 from app.services import watchlist_service
@@ -1233,3 +1237,66 @@ def score_portfolio(request: PortfolioScoringRequest):
         is_mock=result["is_mock"],
         error=result.get("error"),
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /health-check
+# POST /deals/{deal_id}/health-check
+# ---------------------------------------------------------------------------
+
+def _health_response(result: dict) -> "HealthCheckResponse":
+    return HealthCheckResponse(
+        health_id=result["health_id"],
+        deal_id=result["deal_id"],
+        checked_at=result["checked_at"],
+        overall_grade=result.get("overall_grade"),
+        overall_score=result.get("overall_score"),
+        score_summary=result.get("score_summary", {}),
+        stress_summary=result.get("stress_summary", {}),
+        watchlist_summary=result.get("watchlist_summary", {}),
+        key_risk_indicators=result.get("key_risk_indicators", []),
+        action_items=result.get("action_items", []),
+        health_report=result.get("health_report", ""),
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+@router.post("/health-check", response_model=HealthCheckResponse, tags=["health"])
+def health_check(request: HealthCheckRequest):
+    """
+    Run a unified health check on a deal.
+
+    Synthesises deal scoring (grade + KRIs), a quick stress drawdown
+    (base vs. stress vs. deep-stress IRR), and watchlist alerts into a
+    single structured report with Key Risk Indicators and Action Items.
+
+    All outputs are tagged [demo].
+    """
+    result = deal_health_workflow(
+        deal_input=request.deal_input,
+        actor=request.actor,
+    )
+    if result.get("error") and not result.get("overall_grade"):
+        raise HTTPException(status_code=422, detail=result["error"])
+    return _health_response(result)
+
+
+@router.post("/deals/{deal_id}/health-check", response_model=HealthCheckResponse,
+             tags=["deals"])
+def health_check_registered_deal(deal_id: str, request: DealHealthCheckRequest):
+    """
+    Run a health check on a deal that's already in the registry.
+
+    Equivalent to POST /health-check but looks the deal up from the
+    registry by deal_id.
+    """
+    record = deal_registry_service.get(deal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deal '{deal_id}' not found in registry.")
+    deal_input = record.get("deal_input")
+    if not deal_input:
+        raise HTTPException(status_code=422, detail="Registered deal has no deal_input.")
+    result = deal_health_workflow(deal_input=deal_input, actor=request.actor)
+    return _health_response(result)
