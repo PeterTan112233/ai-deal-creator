@@ -38,10 +38,13 @@ from app.api.models import (
     AnalyzeResponse,
     DealAnalyzeRequest,
     DealRerunRequest,
+    DealScoringRequest,
     PortfolioAnalyzeRequest,
     PortfolioAnalyzeResponse,
     PortfolioStressRequest,
     PortfolioStressResponse,
+    ScoringRequest,
+    ScoringResponse,
     WatchlistCheckRequest,
     WatchlistCheckResponse,
     WatchlistItemRequest,
@@ -87,6 +90,7 @@ from app.services import deal_registry_service, scenario_template_service
 from app.workflows.template_suite_workflow import template_suite_workflow
 from app.workflows.portfolio_analytics_workflow import portfolio_analytics_workflow
 from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
+from app.workflows.deal_scoring_workflow import deal_scoring_workflow
 from app.services import watchlist_service
 from app.workflows.watchlist_workflow import watchlist_check_workflow
 from app.domain.collateral import Collateral
@@ -1075,3 +1079,66 @@ def stress_test_portfolio(request: PortfolioStressRequest):
         is_mock=result["is_mock"],
         error=result.get("error"),
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /scoring/score
+# POST /deals/{deal_id}/score
+# ---------------------------------------------------------------------------
+
+def _scoring_response(result: dict) -> "ScoringResponse":
+    return ScoringResponse(
+        deal_id=result["deal_id"],
+        scoring_id=result["scoring_id"],
+        scored_at=result["scored_at"],
+        composite_score=result.get("composite_score"),
+        grade=result.get("grade"),
+        grade_label=result.get("grade_label"),
+        dimension_scores=result.get("dimension_scores", {}),
+        top_drivers=result.get("top_drivers", []),
+        risk_flags=result.get("risk_flags", []),
+        score_report=result.get("score_report", ""),
+        audit_events_count=len(result.get("audit_events", [])),
+        is_mock=result["is_mock"],
+        error=result.get("error"),
+    )
+
+
+@router.post("/scoring/score", response_model=ScoringResponse, tags=["scoring"])
+def score_deal(request: ScoringRequest):
+    """
+    Compute a composite 0-100 risk/return score for a deal.
+
+    Runs a base-case scenario + GFC/deep-stress templates to populate
+    all four scoring dimensions:
+      - IRR quality       (35%)
+      - OC adequacy       (30%)
+      - Stress resilience (25%)
+      - Collateral quality (10%)
+
+    Returns a letter grade (A–D) and top score drivers.
+    All outputs are tagged [demo].
+    """
+    result = deal_scoring_workflow(
+        deal_input=request.deal_input,
+        actor=request.actor,
+    )
+    return _scoring_response(result)
+
+
+@router.post("/deals/{deal_id}/score", response_model=ScoringResponse, tags=["deals"])
+def score_registered_deal(deal_id: str, request: DealScoringRequest):
+    """
+    Score a deal that's already in the registry.
+
+    Equivalent to POST /scoring/score but looks the deal up from the
+    registry by deal_id.
+    """
+    record = deal_registry_service.get(deal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deal '{deal_id}' not found in registry.")
+    deal_input = record.get("deal_input")
+    if not deal_input:
+        raise HTTPException(status_code=422, detail="Registered deal has no deal_input.")
+    result = deal_scoring_workflow(deal_input=deal_input, actor=request.actor)
+    return _scoring_response(result)

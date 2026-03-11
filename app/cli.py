@@ -147,6 +147,12 @@ def _text_summary(result: dict) -> str:
         lines += ["", "=" * 72]
         return "\n".join(lines)
 
+    # Scoring result
+    if "scoring_id" in result and "composite_score" in result:
+        if result.get("score_report"):
+            lines.append(result["score_report"])
+            return "\n".join(lines)
+
     # Portfolio stress result
     if "stress_id" in result and "risk_ranking" in result:
         if result.get("portfolio_report"):
@@ -327,6 +333,13 @@ def cmd_template_suite(args: argparse.Namespace) -> dict:
     )
 
 
+def cmd_score(args: argparse.Namespace) -> dict:
+    """Score a deal on a 0-100 composite scale with letter grade."""
+    from app.workflows.deal_scoring_workflow import deal_scoring_workflow
+    deal = _load_deal(args.deal_file)
+    return deal_scoring_workflow(deal, actor=args.actor)
+
+
 def cmd_portfolio_stress(args: argparse.Namespace) -> dict:
     """Run stress template battery across multiple deals, rank by vulnerability."""
     from app.workflows.portfolio_stress_workflow import portfolio_stress_workflow
@@ -438,6 +451,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("v1_file", help="Path to version-1 deal JSON file.")
     p.add_argument("v2_file", help="Path to version-2 deal JSON file.")
 
+    # ---- score ----
+    p = subparsers.add_parser("score", parents=[_globals],
+                              help="Score a deal on a 0-100 composite scale (A-D grade).")
+    p.add_argument("deal_file", help="Path to deal JSON file.")
+
     # ---- portfolio-stress ----
     p = subparsers.add_parser("portfolio-stress", parents=[_globals],
                               help="Run stress template battery across multiple deals.")
@@ -498,6 +516,7 @@ _COMMAND_MAP = {
     "benchmark":         cmd_benchmark,
     "draft":             cmd_draft,
     "compare":           cmd_compare,
+    "score":             cmd_score,
     "portfolio":         cmd_portfolio,
     "portfolio-stress":  cmd_portfolio_stress,
     "templates":         cmd_templates,

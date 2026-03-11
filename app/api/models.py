@@ -543,6 +543,35 @@ class DealAnalyzeRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /scoring/score  /  POST /deals/{deal_id}/score
+# ---------------------------------------------------------------------------
+
+class ScoringRequest(BaseModel):
+    deal_input: Dict[str, Any]
+    actor: str = "api"
+
+
+class DealScoringRequest(BaseModel):
+    actor: str = "api"
+
+
+class ScoringResponse(BaseModel):
+    deal_id: str
+    scoring_id: str
+    scored_at: str
+    composite_score: Optional[float]
+    grade: Optional[str]
+    grade_label: Optional[str]
+    dimension_scores: Dict[str, Any]
+    top_drivers: List[str]
+    risk_flags: List[str]
+    score_report: str
+    audit_events_count: int
+    is_mock: bool
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # POST /portfolio/stress-test
 # ---------------------------------------------------------------------------
 

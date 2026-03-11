@@ -1642,3 +1642,80 @@ class TestPortfolioStress:
     def test_422_on_empty_deal_inputs(self):
         resp = client.post("/portfolio/stress-test", json={"deal_inputs": []})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /scoring/score  /  POST /deals/{deal_id}/score
+# ---------------------------------------------------------------------------
+
+class TestScoring:
+
+    def test_score_200(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        assert resp.status_code == 200
+
+    def test_score_response_structure(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        data = resp.json()
+        for key in ("deal_id", "scoring_id", "scored_at", "composite_score",
+                    "grade", "grade_label", "dimension_scores", "top_drivers",
+                    "risk_flags", "score_report", "audit_events_count", "is_mock", "error"):
+            assert key in data
+
+    def test_composite_score_in_range(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        score = resp.json()["composite_score"]
+        assert 0 <= score <= 100
+
+    def test_grade_is_valid(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        assert resp.json()["grade"] in ("A", "B", "C", "D")
+
+    def test_all_dimensions_present(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        dims = resp.json()["dimension_scores"]
+        for d in ("irr_quality", "oc_adequacy", "stress_resilience", "collateral_quality"):
+            assert d in dims
+
+    def test_score_report_has_demo_tag(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        assert "[demo]" in resp.json()["score_report"]
+
+    def test_is_mock_true(self):
+        resp = client.post("/scoring/score", json={"deal_input": _batch_deal_input()})
+        assert resp.json()["is_mock"] is True
+
+    def test_score_from_registry_200(self):
+        # Register a deal first
+        create_resp = client.post("/deals", json={
+            "deal": {
+                "deal_id": "scoring-reg-001",
+                "name": "Scoring Registry CLO",
+                "issuer": "Score Issuer LLC",
+                "region": "US",
+                "currency": "USD",
+            },
+            "collateral": {
+                "collateral_id": "coll-scoring-001",
+                "pool_id": "pool-scoring-001",
+                "asset_class": "broadly_syndicated_loans",
+                "portfolio_size": 500_000_000,
+                "was": 0.042,
+                "warf": 2800.0,
+                "wal": 5.2,
+                "diversity_score": 60,
+                "ccc_bucket": 0.05,
+            },
+            "tranches": [
+                {"tranche_id": "t-aaa", "name": "AAA", "seniority": 1, "size_pct": 0.62},
+                {"tranche_id": "t-eq",  "name": "Equity", "seniority": 2, "size_pct": 0.10},
+            ],
+        })
+        deal_id = create_resp.json()["deal_id"]
+        resp = client.post(f"/deals/{deal_id}/score", json={})
+        assert resp.status_code == 200
+        assert resp.json()["deal_id"] == deal_id
+
+    def test_score_from_registry_404_unknown(self):
+        resp = client.post("/deals/nonexistent-id/score", json={})
+        assert resp.status_code == 404
