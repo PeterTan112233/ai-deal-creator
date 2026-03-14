@@ -23,6 +23,8 @@ import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { PortfolioAnalysisPage } from "./pages/PortfolioAnalysisPage";
 import { PublishGatePage } from "./pages/PublishGatePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TemplateSuitePage } from "./pages/TemplateSuitePage";
+import { KRIComparisonPage } from "./pages/KRIComparisonPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +61,8 @@ export default function App() {
               <Route path="/portfolio-analyze" element={<PortfolioAnalysisPage />} />
               <Route path="/publish-gate" element={<PublishGatePage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/template-suite" element={<TemplateSuitePage />} />
+              <Route path="/kri-compare" element={<KRIComparisonPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

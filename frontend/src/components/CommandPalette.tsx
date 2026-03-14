@@ -25,6 +25,8 @@ const PAGES = [
   { label: "Comparison",          path: "/compare",      icon: GitCompare,   group: "Tools" },
   { label: "Sensitivity",         path: "/sensitivity",  icon: TrendingUp,   group: "Tools" },
   { label: "Portfolio Analysis",  path: "/portfolio-analyze", icon: BarChart2,    group: "Analysis" },
+  { label: "Template Suite",      path: "/template-suite",    icon: Play,         group: "Tools" },
+  { label: "KRI Comparison",      path: "/kri-compare",       icon: GitCompare,   group: "Tools" },
   { label: "Watchlist",           path: "/watchlist",    icon: Bell,         group: "Governance" },
   { label: "Drafts & Approvals",  path: "/drafts",       icon: FileCheck,    group: "Governance" },
   { label: "Approvals",           path: "/approvals",    icon: ShieldCheck,  group: "Governance" },
