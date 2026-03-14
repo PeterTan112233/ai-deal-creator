@@ -135,6 +135,22 @@ def health():
 
 
 # ---------------------------------------------------------------------------
+# GET /audit/events
+# ---------------------------------------------------------------------------
+
+@router.get("/audit/events", tags=["meta"])
+def get_audit_events(
+    limit: int = 200,
+    offset: int = 0,
+    deal_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+):
+    """Return paginated audit log events, newest first. Optionally filter by deal_id or event_type."""
+    from app.services import audit_logger
+    return audit_logger.get_all_events(limit=limit, offset=offset, deal_id=deal_id, event_type=event_type)
+
+
+# ---------------------------------------------------------------------------
 # POST /deals
 # ---------------------------------------------------------------------------
 

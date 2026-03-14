@@ -16,6 +16,8 @@ import { KRIBadge } from "../components/KRIBadge";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { useToast } from "../components/ui/Toast";
+import { PrintButton } from "../components/ui/PrintButton";
 import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
 import { Database } from "lucide-react";
@@ -35,6 +37,7 @@ const DIM_COLORS = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444"];
 
 export function HealthCheckPage() {
   const location = useLocation();
+  const toast = useToast();
   const preloaded = (location.state as { dealInput?: Record<string, unknown> } | null)
     ?.dealInput;
 
@@ -48,6 +51,8 @@ export function HealthCheckPage() {
 
   const mutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => runHealthCheck(input),
+    onSuccess: () => toast.success("Health check complete."),
+    onError: (err) => toast.error(`Health check failed: ${String(err)}`),
   });
 
   // If navigated here from Deal Registry with a deal, auto-run
@@ -95,11 +100,14 @@ export function HealthCheckPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Deal Health Check</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Unified KRI dashboard — scoring, stress, and watchlist in one view
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Deal Health Check</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Unified KRI dashboard — scoring, stress, and watchlist in one view
+          </p>
+        </div>
+        {result && <PrintButton />}
       </div>
 
       {showPicker && (
@@ -144,12 +152,6 @@ export function HealthCheckPage() {
           ))}
         </div>
       </SectionCard>
-
-      {mutation.isError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-          Error: {String(mutation.error)}
-        </div>
-      )}
 
       {result && (
         <>

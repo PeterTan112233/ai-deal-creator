@@ -42,6 +42,37 @@ def record_event(
     return event
 
 
+def get_all_events(
+    limit: int = 200,
+    offset: int = 0,
+    deal_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Return all audit events with optional filtering and pagination."""
+    all_events = []
+    if os.path.exists(_LOG_PATH):
+        with open(_LOG_PATH) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                    if deal_id and event.get("deal_id") != deal_id:
+                        continue
+                    if event_type and event.get("event_type") != event_type:
+                        continue
+                    all_events.append(event)
+                except json.JSONDecodeError:
+                    continue
+
+    # Newest first
+    all_events.reverse()
+    total = len(all_events)
+    page = all_events[offset : offset + limit]
+    return {"total": total, "offset": offset, "limit": limit, "events": page}
+
+
 def get_event_history(deal_id: str) -> list:
     """
     Return all audit events for a given deal_id from the log file.

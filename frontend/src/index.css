@@ -12,3 +12,47 @@
     min-height: 100vh;
   }
 }
+
+/* ── Print styles ─────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide chrome: sidebar, header, action buttons */
+  aside,
+  header,
+  .no-print,
+  button:not(.print-show) {
+    display: none !important;
+  }
+
+  /* Full-width main */
+  body, html {
+    background: white !important;
+    color: black !important;
+  }
+
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .flex.h-screen {
+    display: block !important;
+  }
+
+  /* Show page-break hints */
+  .print-break-before {
+    page-break-before: always;
+  }
+
+  /* Flatten card shadows */
+  [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  /* Expand all collapsed content */
+  .max-h-48,
+  .max-h-72,
+  .overflow-y-auto {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

@@ -107,7 +107,7 @@ export function DraftsPage() {
 
   // Step 4 state
   const [approver, setApprover] = useState("manager@example.com");
-  const [approvalNotes, setApprovalNotes] = useState("");
+  const [approvalNotes, _setApprovalNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [decidedRecord, setDecidedRecord] = useState<ApprovalRecord | null>(null);

@@ -6,6 +6,7 @@ import { SectionCard } from "../components/SectionCard";
 import { DealForm } from "../components/DealForm";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { useToast } from "../components/ui/Toast";
 import { sampleDeals } from "../lib/sampleDeals";
 import { Activity, Play, Trash2, Plus, ChevronUp, Database, Code } from "lucide-react";
 
@@ -29,6 +30,7 @@ function timeAgo(iso: string): string {
 export function DealRegistryPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const toast = useToast();
   const [showForm, setShowForm] = useState(false);
   const [jsonMode, setJsonMode] = useState(false);
   const [json, setJson] = useState(() => JSON.stringify(sampleDeals.usBSL, null, 2));
@@ -45,12 +47,18 @@ export function DealRegistryPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deals"] });
       setShowForm(false);
+      toast.success("Deal registered successfully.");
     },
+    onError: (err) => toast.error(`Registration failed: ${String(err)}`),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteDeal,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      toast.success("Deal deleted.");
+    },
+    onError: (err) => toast.error(`Delete failed: ${String(err)}`),
   });
 
   async function handleUse(deal: DealSummary, dest: "/health" | "/scenarios") {
@@ -128,11 +136,6 @@ export function DealRegistryPage() {
                 onSubmit={(dealInput) => registerMutation.mutate(dealInput)}
                 isSubmitting={registerMutation.isPending}
               />
-              {registerMutation.isError && (
-                <p className="text-red-600 text-sm mt-2">
-                  Error: {String(registerMutation.error)}
-                </p>
-              )}
             </>
           ) : (
             <>
@@ -159,11 +162,6 @@ export function DealRegistryPage() {
                 spellCheck={false}
               />
               {parseError && <p className="text-red-600 text-sm mt-1">{parseError}</p>}
-              {registerMutation.isError && (
-                <p className="text-red-600 text-sm mt-1">
-                  Error: {String(registerMutation.error)}
-                </p>
-              )}
               <div className="mt-3">
                 <Button onClick={handleRegister} disabled={registerMutation.isPending}>
                   {registerMutation.isPending ? "Registering…" : "Register Deal"}

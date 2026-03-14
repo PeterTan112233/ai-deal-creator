@@ -1,17 +1,22 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart2, Play, Bell, Database, FileCheck, GitCompare, TrendingUp, Grid3x3 } from "lucide-react";
+import { Activity, BarChart2, Play, Bell, Database, FileCheck, GitCompare, TrendingUp, Grid3x3, Zap, MonitorCheck, BarChart3, ScrollText, Layers } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const navItems = [
   { to: "/deals", icon: Database, label: "Deal Registry" },
+  { to: "/monitor", icon: MonitorCheck, label: "Live Monitor" },
   { to: "/health", icon: Activity, label: "Deal Health" },
+  { to: "/bulk-health", icon: Layers, label: "Bulk Health" },
   { to: "/portfolio", icon: BarChart2, label: "Portfolio Scoring" },
   { to: "/stress-matrix", icon: Grid3x3, label: "Stress Matrix" },
+  { to: "/optimize", icon: Zap, label: "Optimizer" },
+  { to: "/benchmark", icon: BarChart3, label: "Benchmark" },
   { to: "/scenarios", icon: Play, label: "Scenario Runner" },
   { to: "/compare", icon: GitCompare, label: "Comparison" },
   { to: "/sensitivity", icon: TrendingUp, label: "Sensitivity" },
   { to: "/watchlist", icon: Bell, label: "Watchlist" },
   { to: "/drafts", icon: FileCheck, label: "Drafts & Approvals" },
+  { to: "/audit", icon: ScrollText, label: "Audit Log" },
 ];
 
 export function Layout() {

@@ -14,6 +14,7 @@ import { GradeCircle } from "../components/GradeCircle";
 import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import { PrintButton } from "../components/ui/PrintButton";
 import { RegistryMultiSelect, resolveSelectedDeals } from "../components/RegistryMultiSelect";
 import { sampleDealsArray } from "../lib/sampleDeals";
 import { Database, Code } from "lucide-react";
@@ -68,11 +69,14 @@ export function PortfolioScoringPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Portfolio Scoring</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Score all deals in your portfolio and compare grades
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Portfolio Scoring</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Score all deals in your portfolio and compare grades
+          </p>
+        </div>
+        {result && <PrintButton />}
       </div>
 
       {/* Input */}

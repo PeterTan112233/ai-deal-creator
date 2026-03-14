@@ -14,13 +14,19 @@ interface Props {
   selected: Set<string>;          // deal_ids
   onChange: (next: Set<string>) => void;
   loadingIds?: Set<string>;       // deal_ids being fetched
+  maxSelect?: number;             // if 1, acts as radio buttons
 }
 
-export function RegistryMultiSelect({ selected, onChange, loadingIds }: Props) {
+export function RegistryMultiSelect({ selected, onChange, loadingIds, maxSelect }: Props) {
   const dealsQuery = useQuery({ queryKey: ["deals"], queryFn: listDeals });
   const deals: DealSummary[] = dealsQuery.data ?? [];
 
   function toggle(id: string) {
+    if (maxSelect === 1) {
+      // Radio-button mode: select this one exclusively
+      onChange(new Set([id]));
+      return;
+    }
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -28,6 +34,7 @@ export function RegistryMultiSelect({ selected, onChange, loadingIds }: Props) {
   }
 
   function selectAll() {
+    if (maxSelect === 1) return;
     onChange(new Set(deals.map((d) => d.deal_id)));
   }
 
@@ -63,23 +70,27 @@ export function RegistryMultiSelect({ selected, onChange, loadingIds }: Props) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500">
-          {selected.size} of {deals.length} selected
+          {maxSelect === 1
+            ? `Select 1 deal`
+            : `${selected.size} of ${deals.length} selected`}
         </span>
-        <div className="flex gap-2">
-          <button
-            onClick={selectAll}
-            className="text-xs text-gray-500 hover:text-gray-900"
-          >
-            All
-          </button>
-          <span className="text-gray-300">·</span>
-          <button
-            onClick={clearAll}
-            className="text-xs text-gray-500 hover:text-gray-900"
-          >
-            None
-          </button>
-        </div>
+        {maxSelect !== 1 && (
+          <div className="flex gap-2">
+            <button
+              onClick={selectAll}
+              className="text-xs text-gray-500 hover:text-gray-900"
+            >
+              All
+            </button>
+            <span className="text-gray-300">·</span>
+            <button
+              onClick={clearAll}
+              className="text-xs text-gray-500 hover:text-gray-900"
+            >
+              None
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="border border-gray-100 rounded-lg overflow-hidden">
@@ -110,7 +121,7 @@ export function RegistryMultiSelect({ selected, onChange, loadingIds }: Props) {
                       <Loader2 size={13} className="animate-spin text-blue-500 mx-auto" />
                     ) : (
                       <input
-                        type="checkbox"
+                        type={maxSelect === 1 ? "radio" : "checkbox"}
                         checked={checked}
                         onChange={() => toggle(deal.deal_id)}
                         onClick={(e) => e.stopPropagation()}
