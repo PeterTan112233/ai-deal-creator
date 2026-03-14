@@ -9,6 +9,7 @@ import { SectionCard } from "../components/SectionCard";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { useToast } from "../components/ui/Toast";
+import { ExportMenu } from "../components/ui/ExportMenu";
 import { Layers, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -144,7 +145,19 @@ export function BulkHealthPage() {
 
       {/* Results table */}
       {results.length > 0 && (
-        <SectionCard title="Results">
+        <SectionCard title="Results" action={
+          <ExportMenu
+            label="bulk-health"
+            data={results.filter(r => r.status === "done")}
+            csvRows={results.filter(r => r.status === "done" && r.result).map(r => ({
+              deal_id: r.deal_id,
+              deal_name: r.name,
+              grade: r.result!.overall_grade,
+              score: r.result!.overall_score,
+              action_items: r.result!.action_items.length,
+            }))}
+          />
+        }>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-gray-500 border-b border-gray-100">

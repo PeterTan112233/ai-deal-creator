@@ -4,11 +4,13 @@ import {
   Activity, BarChart2, Play, Bell, Database, FileCheck,
   GitCompare, TrendingUp, Grid3x3, Zap, MonitorCheck,
   BarChart3, ScrollText, Layers, Search, ShieldCheck, Settings,
-  Menu, ChevronLeft, GitCompare as KRI,
+  Menu, ChevronLeft, GitCompare as KRI, Sliders, ShieldAlert,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { DarkModeToggle } from "./ui/DarkModeToggle";
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 
@@ -38,8 +40,10 @@ const NAV_SECTIONS = [
       { to: "/optimize",      icon: Zap,       label: "Optimizer"       },
       { to: "/benchmark",     icon: BarChart3, label: "Benchmark"       },
       { to: "/scenarios",     icon: Play,      label: "Scenarios"       },
-      { to: "/template-suite",icon: Play,      label: "Template Suite"  },
-      { to: "/kri-compare",   icon: KRI,       label: "KRI Compare"     },
+      { to: "/template-suite",    icon: Play,       label: "Template Suite"  },
+      { to: "/scenario-builder",  icon: Sliders,    label: "Scenario Builder" },
+      { to: "/kri-compare",       icon: KRI,        label: "KRI Compare"     },
+      { to: "/portfolio-stress",  icon: ShieldAlert, label: "Portfolio Stress"},
       { to: "/compare",       icon: GitCompare,label: "Comparison"      },
       { to: "/sensitivity",   icon: TrendingUp,label: "Sensitivity"     },
     ],
@@ -180,6 +184,8 @@ export function Layout() {
             ⚠ All outputs are mock engine data — not for investment or pricing use
           </p>
           <div className="flex items-center gap-2 shrink-0">
+            <DarkModeToggle />
+            <KeyboardShortcuts onSidebarToggle={() => setCollapsed((v) => !v)} />
             <NotificationCenter />
           </div>
         </header>

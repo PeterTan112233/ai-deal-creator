@@ -18,6 +18,7 @@ import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { useToast } from "../components/ui/Toast";
 import { PrintButton } from "../components/ui/PrintButton";
+import { ExportMenu } from "../components/ui/ExportMenu";
 import { DealPickerModal } from "../components/DealPickerModal";
 import { sampleDeals } from "../lib/sampleDeals";
 import { Database } from "lucide-react";
@@ -107,7 +108,12 @@ export function HealthCheckPage() {
             Unified KRI dashboard — scoring, stress, and watchlist in one view
           </p>
         </div>
-        {result && <PrintButton />}
+        {result && (
+          <div className="flex items-center gap-2">
+            <ExportMenu label="health-check" data={result} csvRows={result.key_risk_indicators.map((k) => ({ metric: k.name, label: k.label, value: k.value, status: k.status }))} />
+            <PrintButton />
+          </div>
+        )}
       </div>
 
       {showPicker && (

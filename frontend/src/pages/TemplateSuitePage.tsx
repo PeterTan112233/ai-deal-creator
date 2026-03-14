@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 import { Play, Database, Code, CheckCircle2, XCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { ExportMenu } from "../components/ui/ExportMenu";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -346,7 +347,22 @@ export function TemplateSuitePage() {
           )}
 
           {/* Results table */}
-          <SectionCard title="Full Results">
+          <SectionCard title="Full Results" action={
+            result && <ExportMenu
+              label="template-suite"
+              data={result}
+              csvRows={result.results.map(r => ({
+                template_id: r.template_id,
+                name: r.name,
+                type: r.scenario_type,
+                status: r.status,
+                equity_irr: r.outputs.equity_irr,
+                oc_cushion_aaa: r.outputs.oc_cushion_aaa,
+                wac: r.outputs.wac,
+                irr_drawdown: r.outputs.irr_drawdown,
+              }))}
+            />
+          }>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

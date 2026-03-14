@@ -25,6 +25,8 @@ import { PublishGatePage } from "./pages/PublishGatePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TemplateSuitePage } from "./pages/TemplateSuitePage";
 import { KRIComparisonPage } from "./pages/KRIComparisonPage";
+import { ScenarioBuilderPage } from "./pages/ScenarioBuilderPage";
+import { PortfolioStressPage } from "./pages/PortfolioStressPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +65,8 @@ export default function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/template-suite" element={<TemplateSuitePage />} />
               <Route path="/kri-compare" element={<KRIComparisonPage />} />
+              <Route path="/scenario-builder" element={<ScenarioBuilderPage />} />
+              <Route path="/portfolio-stress" element={<PortfolioStressPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
