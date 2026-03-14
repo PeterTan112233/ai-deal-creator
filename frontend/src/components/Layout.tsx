@@ -3,7 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   Activity, BarChart2, Play, Bell, Database, FileCheck,
   GitCompare, TrendingUp, Grid3x3, Zap, MonitorCheck,
-  BarChart3, ScrollText, Layers, Search,
+  BarChart3, ScrollText, Layers, Search, ShieldCheck, Settings,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { CommandPalette } from "./CommandPalette";
@@ -21,12 +21,13 @@ const NAV_SECTIONS = [
   {
     label: "Analysis",
     items: [
-      { to: "/health",       icon: Activity,  label: "Deal Health"    },
-      { to: "/bulk-health",  icon: Layers,    label: "Bulk Health"    },
-      { to: "/portfolio",    icon: BarChart2, label: "Portfolio"      },
-      { to: "/trend",        icon: TrendingUp,label: "Trend"          },
-      { to: "/stress-matrix",icon: Grid3x3,   label: "Stress Matrix"  },
-      { to: "/pipeline",     icon: Zap,       label: "Full Pipeline"  },
+      { to: "/health",             icon: Activity,    label: "Deal Health"    },
+      { to: "/bulk-health",        icon: Layers,      label: "Bulk Health"    },
+      { to: "/portfolio",          icon: BarChart2,   label: "Portfolio"      },
+      { to: "/portfolio-analyze",  icon: BarChart2,   label: "Deep Analysis"  },
+      { to: "/trend",              icon: TrendingUp,  label: "Trend"          },
+      { to: "/stress-matrix",      icon: Grid3x3,     label: "Stress Matrix"  },
+      { to: "/pipeline",           icon: Zap,         label: "Full Pipeline"  },
     ],
   },
   {
@@ -42,9 +43,12 @@ const NAV_SECTIONS = [
   {
     label: "Governance",
     items: [
-      { to: "/watchlist",   icon: Bell,       label: "Watchlist"  },
-      { to: "/drafts",      icon: FileCheck,  label: "Drafts"     },
-      { to: "/audit",       icon: ScrollText, label: "Audit Log"  },
+      { to: "/watchlist",    icon: Bell,       label: "Watchlist"     },
+      { to: "/drafts",       icon: FileCheck,  label: "Drafts"        },
+      { to: "/approvals",    icon: ShieldCheck,label: "Approvals"     },
+      { to: "/publish-gate", icon: ShieldCheck,label: "Publish Gate"  },
+      { to: "/audit",        icon: ScrollText, label: "Audit Log"     },
+      { to: "/settings",     icon: Settings,   label: "Settings"      },
     ],
   },
 ];

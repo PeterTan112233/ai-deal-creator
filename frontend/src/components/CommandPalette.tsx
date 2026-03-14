@@ -5,7 +5,7 @@ import { listDeals } from "../api/deals";
 import {
   Database, MonitorCheck, Activity, Layers, BarChart2, Grid3x3,
   Zap, BarChart3, Play, GitCompare, TrendingUp, Bell, FileCheck,
-  ScrollText, Search, ChevronRight
+  ScrollText, Search, ChevronRight, ShieldCheck, Settings,
 } from "lucide-react";
 
 // ─── All navigable items ──────────────────────────────────────────────────────
@@ -24,9 +24,13 @@ const PAGES = [
   { label: "Scenario Runner",     path: "/scenarios",    icon: Play,         group: "Tools" },
   { label: "Comparison",          path: "/compare",      icon: GitCompare,   group: "Tools" },
   { label: "Sensitivity",         path: "/sensitivity",  icon: TrendingUp,   group: "Tools" },
+  { label: "Portfolio Analysis",  path: "/portfolio-analyze", icon: BarChart2,    group: "Analysis" },
   { label: "Watchlist",           path: "/watchlist",    icon: Bell,         group: "Governance" },
   { label: "Drafts & Approvals",  path: "/drafts",       icon: FileCheck,    group: "Governance" },
+  { label: "Approvals",           path: "/approvals",    icon: ShieldCheck,  group: "Governance" },
+  { label: "Publish Gate",        path: "/publish-gate", icon: ShieldCheck,  group: "Governance" },
   { label: "Audit Log",           path: "/audit",        icon: ScrollText,   group: "Governance" },
+  { label: "Settings",            path: "/settings",     icon: Settings,     group: "Governance" },
 ];
 
 // ─── CommandPalette ───────────────────────────────────────────────────────────

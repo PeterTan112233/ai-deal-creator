@@ -19,6 +19,10 @@ import { BulkHealthPage } from "./pages/BulkHealthPage";
 import { PipelinePage } from "./pages/PipelinePage";
 import { DealProfilePage } from "./pages/DealProfilePage";
 import { PortfolioTrendPage } from "./pages/PortfolioTrendPage";
+import { ApprovalsPage } from "./pages/ApprovalsPage";
+import { PortfolioAnalysisPage } from "./pages/PortfolioAnalysisPage";
+import { PublishGatePage } from "./pages/PublishGatePage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +55,10 @@ export default function App() {
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/deals/:dealId" element={<DealProfilePage />} />
               <Route path="/trend" element={<PortfolioTrendPage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/portfolio-analyze" element={<PortfolioAnalysisPage />} />
+              <Route path="/publish-gate" element={<PublishGatePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
