@@ -226,9 +226,9 @@ export function DealRegistryPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {deals.map((deal) => (
-                  <tr key={deal.deal_id} className="hover:bg-gray-50 group">
+                  <tr key={deal.deal_id} className="hover:bg-gray-50 group cursor-pointer" onClick={() => navigate(`/deals/${deal.deal_id}`)}>
                     <td className="py-3 pr-4">
-                      <p className="font-medium text-gray-900">{deal.name}</p>
+                      <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{deal.name}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{deal.issuer}</p>
                       <p className="text-xs font-mono text-gray-300">{deal.deal_id}</p>
                     </td>
@@ -257,7 +257,7 @@ export function DealRegistryPage() {
                       </Badge>
                     </td>
                     <td className="py-3">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
                           variant="outline"
@@ -277,7 +277,8 @@ export function DealRegistryPage() {
                           Scenarios
                         </Button>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (confirm(`Delete "${deal.name}"?`)) {
                               deleteMutation.mutate(deal.deal_id);
                             }

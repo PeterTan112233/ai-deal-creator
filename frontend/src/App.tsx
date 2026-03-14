@@ -16,6 +16,9 @@ import { DealMonitorPage } from "./pages/DealMonitorPage";
 import { BenchmarkPage } from "./pages/BenchmarkPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { BulkHealthPage } from "./pages/BulkHealthPage";
+import { PipelinePage } from "./pages/PipelinePage";
+import { DealProfilePage } from "./pages/DealProfilePage";
+import { PortfolioTrendPage } from "./pages/PortfolioTrendPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +48,9 @@ export default function App() {
               <Route path="/benchmark" element={<BenchmarkPage />} />
               <Route path="/audit" element={<AuditLogPage />} />
               <Route path="/bulk-health" element={<BulkHealthPage />} />
+              <Route path="/pipeline" element={<PipelinePage />} />
+              <Route path="/deals/:dealId" element={<DealProfilePage />} />
+              <Route path="/trend" element={<PortfolioTrendPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
